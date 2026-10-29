@@ -327,19 +327,6 @@ select the input provider in the client to avoid resolving the shared
 `audio/mic` contract to the wrong endpoint. Remote speaker output uses the audio
 bridge.
 
-### Optional: previews and existing site scripts
-
-The repository also retains `run_robonix_yolo.sh`, `preview_robonix_yolo.sh`,
-`check_robonix_yolo.sh`, and `calibrate_robonix_yolo.sh` from the existing site.
-They read **`deploy/piper/manifest.local.yaml`**; some also require the existing
-calibration environment and systemd. They use a different entry point from the
-root-level local manifest described above.
-
-For a fresh installation, use the separate-terminal procedure above. To reuse
-the site scripts, follow the [site operation notes](README_ROBONIX_YOLO.md) and
-prepare a separate local manifest at the path they expect. Detection preview
-uses port 8088 by default; calibration uses 8090.
-
 ## Validation
 
 ### Package checks without starting the arm
@@ -387,17 +374,15 @@ tests, not full-dataset accuracy or closed-loop grasp success rates.
 
 Stop issuing motion requests and confirm the arm state. Press `Ctrl-C` in the
 `rbnx boot` terminal, then in the NPU server terminal. To stop the default
-container and related site background services from the host:
+container from the host:
 
 ```bash
-bash stop_robonix_yolo.sh
+docker stop --time 10 robonix_yolo_dev
 ```
 
-The script checks the container's mount, stops the default container and related
-systemd services, and retains source, models, and build outputs. Set
-`ROBONIX_YOLO_CONTAINER_NAME` when using a custom container name. Stopping software
-does not guarantee that the arm has returned to a safe pose or powered off;
-follow the Piper hardware operating procedure.
+Use your container name if it differs. Stopping software does not guarantee that
+the arm has returned to a safe pose or powered off; follow the Piper hardware
+operating procedure.
 
 ## Package Catalog integration
 
@@ -436,12 +421,11 @@ dependency inventory, and source-export instructions.
 | Detection works but grasp positions are offset | K/D, H, image size, undistortion order, base frame, and desktop height |
 | Target matching or Pilot timeouts | Local model URL/key, endpoint/model availability, and proxy settings |
 | Text works but voice does not | FunASR startup and input provider selection; Mock TTS is intentionally silent |
-| Preview/check scripts cannot find configuration | Site scripts read `deploy/piper/manifest.local.yaml`; the root workflow uses `robonix_manifest.local.yaml` |
 
 System ports 50051/50061/50081 and audio bridge port 60002 are intended for a
 trusted network. The template does not configure public TLS or authentication
 for them. For driver, calibration, and deployment log diagnostics, see the
-[Piper operation manual](docs/PIPER_MANUAL.md) and individual package READMEs.
+[Piper calibration guide](tools/calibration/piper/README.md) and individual package READMEs.
 
 ## Repository layout
 
@@ -450,23 +434,22 @@ robonix_manifest.yaml              Root deployment entry point for installation/
 catalog/package-paths.json         Inventory of the 11 published package directories
 packages/primitives/              Arm, camera, description, and audio primitives
 packages/services/                Detection, grasp poses, IK, and speech
-packages/skills/                  Vertical-grasp skill and retained experimental paths
+packages/skills/                  Piper vertical-grasp skill
 yolo_npu/                         RKNN models, runtime, HTTP server, and regression tests
 containers/piper/                 ROS 2 Humble / Robonix image and container entry points
-deploy/piper/                     Soma, URDF, and site deployment template
+deploy/piper/                     Soma configuration and URDF
 host-services/funasr/             Optional host ASR and model download scripts
 tools/calibration/                Intrinsics, planar hand-eye mapping, and verification
-robonix-client/                   Operator client source
-scripts/                          Validation, source export, and site diagnostics
+scripts/                          Catalog validation and filtered source export
 .github/workflows/                Source repository CI
-docs/                            Deployment, architecture, and submission preparation
+docs/                            Package submission preparation
 vendor/PINS.md                    Pinned Robonix source acquisition instructions
 ```
 
-Some S10 and VLA experiments from earlier development remain in the repository.
-The root manifest does not enable openpi: that path needs an additional wrist
-camera, framework, checkpoint, and action configuration. It is outside the
-current RK3588 YOLO grasping acceptance scope.
+Publication is restricted by `catalog/publication.json`. Runtime dependencies,
+calibration tools, body assets, and SDK licenses are included. Machine-specific
+overrides, generated dependencies, unrelated robot deployments, and experimental
+skills are excluded.
 
 ## Sources and licenses
 

@@ -1,7 +1,0 @@
-rbnx-build/
-.env
-logs/
-cache/
-__pycache__/
-*.pyc
-.venv/

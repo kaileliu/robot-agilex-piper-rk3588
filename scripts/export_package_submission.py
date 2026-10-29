@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export the ignore-filtered source without touching the live deployment."""
+"""Export the allowlisted source without touching the live deployment."""
 import argparse
 import hashlib
 import json

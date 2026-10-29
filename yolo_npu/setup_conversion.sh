@@ -12,11 +12,18 @@ command -v uv >/dev/null
 import hashlib
 from pathlib import Path
 import sys
+import urllib.request
 import zipfile
 root = Path(sys.argv[1])
 wheel = root/'vendor/rknn_toolkit2-2.3.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl'
+if not wheel.is_file():
+    wheel = root/'.cache'/wheel.name
+    wheel.parent.mkdir(parents=True, exist_ok=True)
+    url = ('https://files.pythonhosted.org/packages/c2/79/'
+           'd5f886bd0bbf455c3aa62073191fde1cb9a98a253cee885d57123ffa76f1/' + wheel.name)
+    urllib.request.urlretrieve(url, wheel)
 if sys.version_info[:2] != (3, 10):
-    raise SystemExit('The bundled wheel requires Python 3.10')
+    raise SystemExit('The conversion wheel requires Python 3.10')
 if hashlib.sha256(wheel.read_bytes()).hexdigest() != '73d0bb55d30ee00bbd9603331a4118da73a4e12fa9d9196200460d07d67c6a12':
     raise SystemExit('RKNN Toolkit2 wheel checksum mismatch')
 with zipfile.ZipFile(wheel) as z:

@@ -39,10 +39,6 @@
 容器内 `rbnx service:` 列表：HTTP 不是 catalog 接受的 Robonix contract transport，
 因此它准确声明 `capabilities: []`，Robonix-facing 接口由检测服务提供。
 
-旧清单中的 openpi VLA 是另一条尚未迁移完成的可选路径，依赖额外腕部相机、策略
-服务和模型，不是 NPU 抓取的依赖。根入口不启用它，避免缺少 `action_min` 等配置
-导致初始化失败。原代码与旧清单保留供后续独立接入。
-
 ## 从源码安装
 
 1. 在 RK3588 Linux ARM64 主机安装 Docker、Python 3.10、uv、Git，确认 RKNPU 驱动
@@ -93,7 +89,7 @@ git -C /tmp/robonix-package-catalog checkout 65cf91c32acb52e0ec72ff7ef4a003c02c7
 ```
 
 生成 `dist/catalog/catalog.additions.yaml`、`dist/catalog/validation.json`、
-`dist/piper-rk3588-source.tar.gz` 及逐文件 SHA256 清单。导出使用 Git 的 ignore 规则，
+`dist/piper-rk3588-source.tar.gz` 及逐文件 SHA256 清单。导出先使用 `catalog/publication.json` 的明确发布白名单，再应用 Git 的 ignore 规则，
 不依赖当前目录本身是 Git 仓库，排除私密覆盖文件、日志、构建产物、Python 依赖缓存。
 扫描常见密钥和私钥格式、拒绝越界符号链接及超过 GitHub 100 MiB 的单文件。
 `dist/` 自身不会递归进入导出。导出不会更改源项目的 Git 状态。

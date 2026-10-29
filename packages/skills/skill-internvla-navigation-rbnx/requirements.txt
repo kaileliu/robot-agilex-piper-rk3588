@@ -1,4 +1,0 @@
-requests>=2.31,<3
-mcp>=1.0
-grpcio>=1.60
-

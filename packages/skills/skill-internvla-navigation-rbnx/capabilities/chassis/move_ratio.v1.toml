@@ -1,9 +1,0 @@
-[contract]
-id = "robonix/primitive/chassis/move_ratio"
-version = "1"
-kind = "primitive"
-idl = "chassis/srv/ExecuteMoveCommand.srv"
-description = "Low-level bounded chassis motion using normalized velocity ratios."
-
-[mode]
-type = "rpc"
