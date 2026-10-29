@@ -338,8 +338,7 @@ root-level local manifest described above.
 For a fresh installation, use the separate-terminal procedure above. To reuse
 the site scripts, follow the [site operation notes](README_ROBONIX_YOLO.md) and
 prepare a separate local manifest at the path they expect. Detection preview
-uses port 8088 by default; calibration uses 8090. No new preview instance was
-started or validated as part of documentation preparation.
+uses port 8088 by default; calibration uses 8090.
 
 ## Validation
 
@@ -480,4 +479,3 @@ conditions, including Apache-2.0 drivers and the
 - [packages/UPSTREAMS.md](packages/UPSTREAMS.md): upstream revisions and local package modifications.
 - [SOURCES.md](SOURCES.md): deployment provenance and adaptation history.
 - [yolo_npu/SOURCES.md](yolo_npu/SOURCES.md): weights, RKNN SDK/runtime provenance, versions, and checksums.
-- [Reference deployment README](https://github.com/syswonder/robot-agilex-ranger_with_piper_mujoco): a structural reference for this guide; features and commands here describe this physical deployment.
