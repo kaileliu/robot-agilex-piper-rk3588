@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--catalog-source', type=Path, required=True)
     parser.add_argument('--root', type=Path, default=ROOT)
     parser.add_argument('--robonix-source', type=Path, default=ROOT/'vendor/robonix')
-    parser.add_argument('--repo', default='https://github.com/OWNER/robot-agilex-piper-rk3588')
+    parser.add_argument('--repo', default='https://github.com/kaileliu/robot-agilex-piper-rk3588')
     parser.add_argument('--output', type=Path, default=ROOT/'dist/catalog')
     args = parser.parse_args()
     root = args.root.resolve()

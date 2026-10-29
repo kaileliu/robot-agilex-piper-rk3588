@@ -18,6 +18,7 @@ catalog:
   - manipulation
   - yolo
   maintainers:
+  - kaileliu <kaileliu@users.noreply.github.com>
   - lhw2002426 <lhw2002426@users.noreply.github.com>
 env:
   SPEECH_BACKEND: custom

@@ -2,6 +2,10 @@
 
 **这一层为什么存在**：robonix 容器里不装深度学习依赖（没有 torch/CUDA/ultralytics，见 `containers/`）。耗算力的活（YOLO 推理、FunASR 语音识别、VLA 策略）都跑在**宿主机**上，容器内的包通过 `--net host` 用 localhost 访问它们。检测、语音、策略三条链路在宿主侧的那一半，都在这里。
 
+当前 RK3588 部署的默认 YOLO 后端位于 [`yolo_npu/`](../yolo_npu/README.md)，
+使用 RKNN Lite2 和 NPU，启动命令为 `bash yolo_npu/run_yolo_npu.sh`（仓库根执行）。
+下面 YOLO 的 PyTorch/Jetson 环境说明保留用于旧 CPU/GPU 后端，不是 NPU 的安装前提。
+
 ## 一览
 
 | 服务 | 端点 | 代码 | 模型 | 谁在用 |

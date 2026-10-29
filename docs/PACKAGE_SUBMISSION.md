@@ -1,4 +1,8 @@
-# Piper Package Catalog 接入与提交
+# Piper Package Catalog 接入与提交准备
+
+源码仓库：<https://github.com/kaileliu/robot-agilex-piper-rk3588>，默认分支 `main`。
+当前阶段只维护并提交源码仓库，**不创建 catalog 收录 PR**；未来由用户明确确认后
+再执行下面的收录步骤。
 
 本项目按 [官方 catalog](https://github.com/syswonder/robonix-package-catalog)
 的当前规则接入：整机清单必须在仓库根目录，普通包可通过 catalog `path:` 收录同一
@@ -14,7 +18,7 @@
 
 为了保留本项目修改、不覆盖已收录的上游包，10 个 Robonix 依赖的 `package.name`
 使用 `.piper_rk3588` 后缀。provider ID、能力 contract ID 和调用路径不变。
-维护者信息沿用已有包的署名，发布前可由实际维护者统一更新。
+包维护者信息保留已有署名，整机 catalog 同时列出仓库维护者 kaileliu。
 
 | 目录（相对仓库根） | 用途 | 接口 |
 | --- | --- | --- |
@@ -81,10 +85,10 @@ python3 -m venv /tmp/piper-catalog-venv
 git clone https://github.com/syswonder/robonix-package-catalog /tmp/robonix-package-catalog
 git -C /tmp/robonix-package-catalog checkout 65cf91c32acb52e0ec72ff7ef4a003c02c78f00f
 
-# 替换为实际要发布的 GitHub 仓库。
+# 校验当前公开源码仓库的提交准备。
 /tmp/piper-catalog-venv/bin/python scripts/check_package_submission.py \
   --catalog-source /tmp/robonix-package-catalog \
-  --repo https://github.com/OWNER/robot-agilex-piper-rk3588
+  --repo https://github.com/kaileliu/robot-agilex-piper-rk3588
 /tmp/piper-catalog-venv/bin/python scripts/export_package_submission.py
 ```
 
@@ -98,10 +102,11 @@ git -C /tmp/robonix-package-catalog checkout 65cf91c32acb52e0ec72ff7ef4a003c02c7
 将 additions 中的 `packages`/`robots` 条目合并进 catalog 现有同名列表，不能覆盖已有
 列表或增加第二个顶层同名键。Catalog PR 只提交其 `catalog.yaml` 的这些新增条目。
 
-目标 GitHub 仓库尚未确认时，预检默认 URL 含 `OWNER`，它只用于本地路径校验，
-绝不能直接提交。实际步骤是：先发布源码到公开可读的默认分支；以真实 `--repo`
-重新预检；再提交 catalog PR。官方 CI 将使用 GitHub API 重新读取实际内容，包括
-当前 Robonix 全局契约、文件树和图片。只有那个 CI 成功才能确认远端收录可行。
+当前源码仓库已经公开，校验默认使用真实仓库地址。新建目录条目的工作仍留在本地
+`dist/catalog/catalog.additions.yaml`，本轮不创建或重新打开官方 PR。未来确认收录时，
+先检查源码仓库默认分支，再以真实 `--repo` 重新预检、提交仅修改 `catalog.yaml` 的 PR。
+官方 CI 将使用 GitHub API 重新读取实际内容，包括当时的 Robonix 全局契约、文件树
+和图片。源码仓库 Actions 通过与官方收录 PR 的 CI 通过是两项独立的检查。
 
 ## 验证边界
 

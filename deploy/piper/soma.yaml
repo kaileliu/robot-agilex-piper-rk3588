@@ -26,7 +26,7 @@ urdf:
 
 robot:
   id: piper_grasp_01
-  display_name: "AgileX Piper 6-DoF arm + Orbbec Dabai DCW RGBD + gripper"
+  display_name: "AgileX Piper 6-DoF arm + Orbbec Gemini 336L RGB-D + gripper"
   family: manipulator
   root_part: arm
   dimensions:
