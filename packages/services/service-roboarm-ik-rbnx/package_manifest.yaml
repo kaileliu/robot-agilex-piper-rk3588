@@ -1,0 +1,32 @@
+# roboarm_ik_rbnx — manipulation service using roboarm-style Python IK.
+#
+# Alternative to piper_moveit_rbnx. It owns the same manipulation contracts,
+# but does not start MoveIt/move_group. It solves IK locally and publishes
+# JointState commands to piper_ctl_rbnx.
+manifestVersion: 1
+
+package:
+  name: robonix.service.roboarm.ik.piper_rk3588
+  version: 0.1.0
+  vendor: robonix
+  description: Roboarm-style Python IK executor service for Piper manipulation.
+  license: MulanPSL-2.0
+  tags: [service, manipulation, ik, agilex, piper, ros2]
+  maintainers: ["lhw2002426 <lhw2002426@users.noreply.github.com>"]
+
+capability_id: roboarm_ik
+
+build: bash scripts/build.sh
+start: bash scripts/start.sh
+
+capabilities:
+  - name: robonix/service/manipulation/driver
+    transport: grpc
+  - name: robonix/service/manipulation/execute_grasp
+    transport: grpc
+  - name: robonix/service/manipulation/reset
+    transport: grpc
+  - name: robonix/service/manipulation/teach_safe
+    transport: grpc
+  - name: robonix/service/manipulation/put_down
+    transport: grpc

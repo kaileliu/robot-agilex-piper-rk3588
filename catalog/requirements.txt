@@ -1,0 +1,7 @@
+pyyaml
+markdown
+bleach
+pygments
+pymdown-extensions
+pillow
+tomli; python_version < "3.11"

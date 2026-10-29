@@ -1,0 +1,2 @@
+"""Robonix InternVLA navigation skill."""
+

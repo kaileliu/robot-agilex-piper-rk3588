@@ -1,0 +1,20 @@
+# robonix/skill/pick/put_in_box — put the ALREADY-HELD object into the box.
+#
+# The second half of the pick pipeline exposed on its own: carry the held
+# object over the configured box drop point, lower it, release it, then return
+# home empty-handed. Drop point comes from the deploy's box calibration, so it
+# needs no detection and no object name — it works after grab.
+#
+# Distinct from robonix/skill/pick/put_down, which opens the gripper WHERE THE
+# ARM ALREADY IS with zero arm motion.
+#
+# Reuses PutDown.srv verbatim (empty request -> called with {}; response =
+# success/message/elapsed_s), so no new codegen types are required.
+[contract]
+id      = "robonix/skill/pick/put_in_box"
+version = "1"
+kind    = "skill"
+idl     = "pick/srv/PutDown.srv"
+
+[mode]
+type = "rpc"

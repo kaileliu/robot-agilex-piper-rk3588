@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: MulanPSL-2.0
+#
+# skill-vla-openpi-rbnx — LLM-callable skill for openpi VLA inference + JOINT-SPACE
+# execution. Forked from lhw2002426/vla_client_rbnx; contract surface unchanged
+# (robonix/skill/vla/{driver,execute}) but inference backend swapped to the openpi
+# websocket policy server (pi05_piper).
+#
+# Lifecycle: lazy-activate (first MCP call triggers openpi connect + ROS thread)
+#   on_init      — parse + validate config
+#   on_activate  — connect openpi policy server (websocket), start ROS subscriber
+#   on_deactivate — stop subscriber, drop policy client
+#
+# Architecture: openpi returns an ABSOLUTE (50,7) action chunk. This skill streams
+# it to /arm/joint_command (sensor_msgs/JointState — piper_ctl subscribes there for
+# non-blocking joint-space control). No CAN ownership; no MoveIt. A safety filter
+# (action-limit clip + per-step rate limit) bounds out-of-distribution output.
+#
+# Action / state convention (matches /home/czn/roboarm/classification/main.py):
+#   state/action = [joint_1..6 (deg), gripper_0to1 * 100]  (7,)
+#   piper_ctl bridge: joints deg→rad (factor 57324.84 expects rad);
+#     gripper position[6] in meters = (action[6]/100)/20 with gripper_val_mutiple=2.
+#   ⚠️ gripper scaling is verified-pending — re-check on real hardware.
+manifestVersion: 1
+
+package:
+  name: com.robonix.piper_grasp.vla_openpi
+  version: 0.1.0
+  vendor: robonix
+  description: openpi VLA client skill — LLM-callable vision-language-action inference + joint-space execution.
+  license: MulanPSL-2.0
+
+capability_id: openvla_client
+
+build: bash scripts/build.sh
+start: bash scripts/start.sh
+
+capabilities:
+  - name: robonix/skill/vla/driver
+  - name: robonix/skill/vla/execute
+
+config_defaults:
+  # ── openpi policy server (scripts/serve_policy.py, pi05_piper) ──
+  # Runs on the HOST openpi venv, port 8002, no auth. Container reaches it via
+  # --net host at 127.0.0.1. Start it before any VLA-mode run:
+  #   /home/czn/openpi/.venv/bin/python scripts/serve_policy.py --port 8002 \
+  #     policy:checkpoint --policy.config pi05_piper --policy.dir /home/czn/piper_full/full_pytorch
+  vla_host: "127.0.0.1"
+  vla_port: 8002
+  vla_api_key: ""
+
+  # Natural-language prompt. pi05_piper was trained on prompts like
+  # "pick the potato toy and place into box". pick skill sends "Pick up the {obj}";
+  # {object} is extracted and substituted here. Empty template = pass instruction through.
+  prompt_template: "pick the {object} toy and place into box"
+
+  # ── Topics ──
+  full_image_topic:  /camera/color/image_raw        # Orbbec 336L overhead ("above")
+  wrist_image_topic: /camera_435i/color/image_raw   # RealSense D435i wrist
+  joint_states_topic: /arm/joint_states_single      # piper_ctl proprio (rad, gripper m)
+  joint_cmd_topic:    /arm/joint_command            # piper_ctl non-blocking joint cmd
+
+  # ── Closed-loop timing ──
+  control_dt: 0.033          # ~30 Hz, matches training playback rate
+  actions_per_chunk: 50      # execute full pi0.5 chunk (action_horizon=50) before re-infer
+  timeout_s: 60.0
+
+  # ── Safety filter (action units: [deg*6, gripper_0to1*100]) ──
+  # Conservative Piper joint ranges (deg); gripper 0..100. Out-of-range or too-fast
+  # steps are clipped. These bound model output; tune on hardware.
+  enable_safety_filter: true
+  action_min: [-154.0, 0.0,   -170.0, -100.0, -75.0,  -100.0,   0.0]
+  action_max: [ 154.0, 195.0,    0.0,  100.0,  75.0,   100.0, 100.0]
+  # Max change per streamed step. At 30 Hz, 5 deg/step ≈ 150 deg/s (cap lower on hw).
+  max_delta_per_step: [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 20.0]
+
+  # ── JointState publish params (piper_ctl reads velocity[6]=%, effort[6]=grip) ──
+  joint_velocity_pct: 30.0
+  # piper_ctl clips effort to [0.5,3] then *1000 -> CAN. 3.0 => 3000 (max via
+  # this path; roboarm uses 5000 straight to SDK). 1.0 was too weak to hold.
+  gripper_effort: 3.0

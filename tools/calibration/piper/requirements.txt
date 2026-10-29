@@ -1,0 +1,14 @@
+# piper 标定的运行依赖（宿主上跑；不需要 ROS，也不需要容器）。
+#
+# 建环境（宿主 python 用 miniforge）：
+#   conda create -y -n piper-calib python=3.10 && conda activate piper-calib
+#   pip install -r tools/calibration/piper/requirements.txt
+# 之后：cd tools/calibration/piper && python app.py --port 8090
+numpy>=1.26,<2            # 本机既有环境是 1.26；2.x 没在这套工具上测过
+opencv-python>=4.11,<4.12 # 4.12+ 要求 numpy>=2
+PyYAML>=6.0               # config.py 读 config.yaml
+flask>=3.1                # 标定台的网页
+scipy>=1.15               # 臂的姿态换算与 IK
+kinpy>=0.5.6              # URDF 运动学链（IK，见 common/robot/ik.py）
+piper-sdk>=0.6            # 臂的 CAN 接口（common/robot/）
+pyorbbecsdk2>=2.0         # Gemini 336L 取图（宿主直连，与相机原语同一个 SDK）

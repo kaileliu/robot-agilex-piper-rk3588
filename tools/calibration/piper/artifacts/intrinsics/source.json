@@ -1,0 +1,75 @@
+{
+  "source": "live Gemini 336L ROS CameraInfo (factory intrinsics, not a new chessboard calibration)",
+  "camera_info": {
+    "topic": "/camera/color/camera_info",
+    "width": 1280,
+    "height": 720,
+    "distortion_model": "rational_polynomial",
+    "k": [
+      609.7718505859375,
+      0.0,
+      648.5372314453125,
+      0.0,
+      609.9119873046875,
+      356.3616027832031,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "d": [
+      -0.032210126519203186,
+      0.03580357879400253,
+      -4.5174052502261475e-05,
+      6.725463026668876e-05,
+      -0.012600783258676529,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "p": [
+      609.7718505859375,
+      0.0,
+      648.5372314453125,
+      0.0,
+      0.0,
+      609.9119873046875,
+      356.3616027832031,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    "frame_id": "camera_color_optical_frame"
+  },
+  "stream_fps": 10,
+  "previous_camera_matrix": [
+    [
+      710.0544838171999,
+      0.0,
+      632.0247718372406
+    ],
+    [
+      0.0,
+      708.9959224823211,
+      396.81408349890876
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "previous_dist_coeffs": [
+    -0.026245769118106475,
+    0.012153855997836091,
+    0.00038744578861641353,
+    -0.0005296484148828932,
+    0.009809658900673136
+  ],
+  "deployment_modified": false,
+  "manifest_sha256": "ed992087472ce2b69334d39b5bda868f21a48365dcfdb49ea0c2841dce88e716",
+  "new_correspondences": 0,
+  "homography_status": "pending_real_measurements",
+  "physical_grasp_verified": false
+}

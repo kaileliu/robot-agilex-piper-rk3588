@@ -1,0 +1,29 @@
+{
+  "task": "obb",
+  "architecture": "yolo11n-obb",
+  "names": {
+    "0": "carrot",
+    "1": "potato",
+    "2": "tomato"
+  },
+  "input_shape": [
+    736,
+    1280
+  ],
+  "color": "RGB",
+  "input_scale": 255.0,
+  "output_format": "raw_obb_heads_v1",
+  "strides": [
+    8,
+    16,
+    32
+  ],
+  "reg_max": 16,
+  "source_weights_sha256": "536ba21b64377a89c9bccf08c5898f54f5130aff7bafbdf9d5ed49d05a1aeb3b",
+  "onnx_sha256": "339272f60dfd4488063224c73478224998d7b1e3be374483ea16bcfd76e02235",
+  "ultralytics_version": "8.4.37",
+  "target": "rk3588",
+  "precision": "fp16",
+  "rknn_sha256": "b1c9d0d20bad6ca4432ee9651d9320a06745d6b62b0f554fd185a38fdbef6422",
+  "toolkit_version": "2.3.2"
+}

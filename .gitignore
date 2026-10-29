@@ -1,0 +1,66 @@
+# 构建 / 运行时产物（都不是源码，随时可重建）
+rbnx-boot/
+rbnx-build/
+.robonix-build/
+logs/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+node_modules/
+target/
+.cache/
+.uv-cache/
+.pytest_cache/
+core
+core.*
+
+# Recreated by yolo_npu/setup_runtime.sh and setup_conversion.sh.
+yolo_npu/runtime_python/
+yolo_npu/runtime_deps/
+yolo_npu/converter_python/
+yolo_npu/convert_deps/
+
+# Reviewable publication output; never recursively include it in an export.
+dist/
+.catalog-checker/
+
+# 密钥：真实值只放本地 *.local.yaml（模板可入库，见 README/手册）
+*.local.yaml
+*.local.env
+run-logs/
+reports/
+
+# vendor/：本地检出（体积大、可重新获取）——只保留 PINS.md
+vendor/robonix/
+vendor/robonix-client/
+
+# host-services/：宿主侧模型服务的运行期产物与不入库的大模型
+#   每个服务一个 venv：yolo/.venv、funasr/.venv（各自的 setup_venv.sh 建，可重建；
+#                       被上面的 .venv/ 规则覆盖，这里不再单列）
+#   .uv-cache/       —— setup_venv.sh 的下载缓存（默认放这儿而不是 ~/.cache，见脚本注释）
+#   funasr/model/    —— FunASR 模型 849 MB（随仓库放在磁盘上，不进 git；
+#                       删了用 funasr/fetch_funasr_model.sh 重拉）
+#   openpi/openpi-src/ —— setup_openpi.sh 的 openpi 检出（可选，VLA parked）
+host-services/funasr/model/
+host-services/openpi/openpi-src/
+host-services/.uv-cache/
+# tools/calibration/piper/：标定运行产物（原始图、结果 npy、报告、SDK 日志，均可重跑标定台再生成）
+#   artifacts/intrinsics/images/*.png          —— 标定采集的原始图
+#   artifacts/intrinsics/*.npy                 —— 内参标定结果
+#   artifacts/handeye/*.npy                    —— 手眼标定结果
+#   artifacts/handeye/2d_homography_report.txt —— 手眼标定报告
+#   Log/OrbbecSDK.log.txt                      —— Orbbec SDK 运行日志
+tools/calibration/piper/artifacts/intrinsics/images/*.png
+tools/calibration/piper/artifacts/intrinsics/*.npy
+tools/calibration/piper/artifacts/handeye/*.npy
+tools/calibration/piper/artifacts/handeye/2d_homography_report.txt
+tools/calibration/piper/Log/OrbbecSDK.log.txt
+
+# packages/：运行期日志与崩溃转储（core dump）
+#   primitive-orbbec-dabai_dcw-camera-rbnx/log.txt —— 相机节点运行日志
+#   service-roboarm-ik-rbnx/core.*                  —— IK 服务崩溃转储
+#   skill-pick-vertical-grasp-piper-rbnx/core.*     —— 抓取技能崩溃转储
+packages/primitives/primitive-orbbec-dabai_dcw-camera-rbnx/log.txt
+packages/services/service-roboarm-ik-rbnx/core.*
+packages/skills/skill-pick-vertical-grasp-piper-rbnx/core.*

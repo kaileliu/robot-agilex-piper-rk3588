@@ -1,0 +1,24 @@
+# Vendor-specific status stream — NOT part of the robonix global
+# primitive/arm/* set. Kept as a Piper-only 5th contract because the
+# upstream driver already exposes it and downstream services here
+# (pick_skill_rbnx, piper_moveit_rbnx) rely on it to gate retries /
+# grasp completion.
+#
+# Consumed by:
+#   - pick_skill_rbnx: pick.py polls `arm_status.arm_status == 0` to
+#     know the arm is back to a ready state after a previous command.
+#   - piper_moveit_rbnx: gates execute_grasp on busy/idle transitions.
+#
+# The IDL `piper_msgs/msg/PiperStatusMsg.msg` is shipped at PACKAGE
+# level under `capabilities/lib/piper_msgs/msg/PiperStatusMsg.msg`
+# because it's vendor-specific and has no place in the global
+# common_interfaces tree.
+[contract]
+id      = "robonix/primitive/arm/arm_status"
+version = "1"
+kind    = "primitive"
+idl     = "piper_msgs/msg/PiperStatusMsg.msg"
+description = "Vendor-specific Piper arm status word (busy / idle / faulted, per-joint limits, CAN health)."
+
+[mode]
+type = "topic_out"

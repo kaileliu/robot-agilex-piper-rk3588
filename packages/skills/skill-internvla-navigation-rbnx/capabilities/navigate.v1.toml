@@ -1,0 +1,10 @@
+[contract]
+id = "robonix/skill/internvla_navigation/navigate"
+version = "1"
+kind = "skill"
+idl = "internvla_navigation/srv/Navigate.srv"
+description = "Run closed-loop language-guided navigation until completion or failure."
+
+[mode]
+type = "rpc"
+

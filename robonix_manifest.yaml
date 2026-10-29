@@ -1,0 +1,246 @@
+# Catalog/portable deployment entrypoint. Site-local secrets and calibration stay in *.local.yaml.
+# Review CAN, calibration and activation before hardware use; see docs/PACKAGE_SUBMISSION.md.
+manifestVersion: 1
+name: robonix-piper-rk3588-deploy
+catalog:
+  name: robonix.robot.agilex.piper_rk3588
+  version: 0.2.0
+  description: AgileX Piper with Orbbec Gemini 336L, RK3588 NPU YOLO and Python IK
+    for vertical grasping.
+  license: MulanPSL-2.0
+  tags:
+  - robot
+  - deploy
+  - agilex
+  - piper
+  - rk3588
+  - rgbd
+  - manipulation
+  - yolo
+  maintainers:
+  - lhw2002426 <lhw2002426@users.noreply.github.com>
+env:
+  SPEECH_BACKEND: custom
+  PIPER_WORKSPACE: /root/workspace
+system:
+  atlas:
+    listen: 0.0.0.0:50051
+    log: info
+  executor:
+    listen: 0.0.0.0:50061
+    log: info
+  pilot:
+    listen: 127.0.0.1:50071
+    log: info
+    vlm:
+      upstream: https://api.deepseek.com/v1
+      api_key: <YOUR_LLM_API_KEY>
+      model: deepseek-v4-pro
+      api_format: openai
+  liaison:
+    listen: 0.0.0.0:50081
+    log: info
+  soma:
+    listen: 127.0.0.1:50091
+    log: info
+    provider_id: soma
+    robot_yaml: deploy/piper/soma.yaml
+    config: deploy/piper/soma_config.yaml
+primitive:
+- name: orbbec_camera
+  path: packages/primitives/primitive-orbbec-dabai_dcw-camera-rbnx
+  config:
+    launch_file: gemini_330_series.launch.py
+    camera_name: camera
+    depth_registration: true
+    enable_d2c_viewer: false
+    color_width: 1280
+    color_height: 720
+    color_fps: 30
+    color_format: MJPG
+    depth_width: 0
+    depth_height: 0
+    depth_fps: 0
+    sentinel_timeout_s: 30.0
+- name: piper_ctl
+  path: packages/primitives/primitive-agilex-piper-arm-rbnx
+  config:
+    can_port: can0
+    can_bitrate: 1000000
+    can_usb_address: ''
+    auto_can_setup: false
+    auto_enable: false
+    gripper_exist: true
+    gripper_val_mutiple: 2
+    sentinel_timeout_s: 30.0
+- name: piper_description
+  path: packages/primitives/primitive-agilex-piper-description-rbnx
+  config: {}
+- name: audio_mic
+  path: packages/primitives/primitive-audio-mic-rbnx
+  config:
+    mic_device: ''
+    mic_sample_rate: 16000
+    mic_channels: 1
+    mic_bits: 16
+    mic_chunk_ms: 100
+- name: audio_client_bridge
+  path: packages/primitives/primitive-audio-client-bridge-rbnx
+  config:
+    transport: reverse
+    listen_host: 0.0.0.0
+    listen_port: 60002
+service:
+- name: llm_detect
+  path: packages/services/service-object-detect-rbnx
+  config:
+    detect_backend: yolo_http
+    yolo_http_url: http://127.0.0.1:8770/detect
+    yolo_http_timeout_s: 10.0
+    yolo_conf: 0.5
+    yolo_iou: 0.45
+    llm_base_url: https://api.ikuncode.cc/v1
+    llm_api_key: <YOUR_LLM_API_KEY>
+    llm_model: claude-opus-5
+    llm_timeout_s: 60.0
+    temperature: 0.0
+    rotation_cam2arm: true
+    skip_depth: true
+    rgb_topic: ''
+    camera_info_topic: ''
+- name: grasp_pose
+  path: packages/services/service-grasp-pose-rbnx
+  config:
+    homography_matrix:
+    - - 7.426233059959486e-05
+      - -0.0009147902019321918
+      - 0.5314759612083435
+    - - -0.0010214668000116944
+      - -7.420652400469407e-05
+      - 0.6713488101959229
+    - - -9.26314532989636e-06
+      - 0.000495159241836518
+      - 1.0
+    default_desktop_height: 0.135
+    catch_offset: 0.0
+    gripper_width_default: 0.04
+    box_rotation_deg: 0.0
+    bias_x: 0.0
+    bias_y: 0.0
+    output_frame: arm/base_link
+- name: roboarm_ik
+  path: packages/services/service-roboarm-ik-rbnx
+  config:
+    urdf_path: ${PIPER_WORKSPACE}/deploy/piper/urdf/piper.urdf
+    init_joints_deg:
+    - -90.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    teach_safe_joints_deg:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    put_down_joints_deg:
+    - 2.990407
+    - 166.783154
+    - -70.97819
+    - -4.119805
+    - 1.697096
+    - 10.370476
+    carry_to_teach_safe_waypoints_deg:
+    - - 1.711088
+      - 81.721467
+      - -80.833939
+      - -3.718019
+      - 49.375697
+      - -6.657454
+    reset_feedback_timeout_s: 8.0
+    max_gripper_width: 0.08
+- name: speech
+  path: packages/services/service-speech
+  config:
+    speech_backend: custom
+    speech_asr_stream_backend_class: speech_service.remote_asr:RemoteFunASRStreamingBackend
+    funasr_remote_url: ws://127.0.0.1:8771
+    wake_words:
+    - 罗伯特
+    asr_log_file: /root/workspace/deploy/piper/rbnx-boot/logs/asr_transcripts.log
+    speech_tts_backend_class: speech_service.service:MockTTSBackend
+    tencent_tts_voice_type: 1001
+    tencent_tts_region: ap-guangzhou
+    default_speaker_provider_id: audio_client_bridge
+skill:
+- name: pick
+  path: packages/skills/skill-pick-vertical-grasp-piper-rbnx
+  config:
+    place_positions:
+      carrot:
+      - 0.05
+      - 0.35
+      potato:
+      - 0.05
+      - 0.35
+      tomato:
+      - 0.05
+      - 0.35
+    place_fallback_xy:
+    - 0.1
+    - 0.0
+    desktop_height: 0.135
+    grasp_offset: 0.0
+    travel_offset: 0.1
+    place_go_down_before_open: false
+    detect_scheme: yolo
+    grab_vlm_base_url: https://api.ofox.io/v1
+    grab_vlm_api_key: <YOUR_LLM_API_KEY>
+    grab_vlm_model: gpt-5.6-sol
+    runtime_config_file: /root/workspace/deploy/piper/rbnx-boot/runtime_config.txt
+    demo_pos_a:
+    - 0.25
+    - 0.0
+    demo_pos_b:
+    - 0.1
+    - 0.35
+    place_jitter_enabled: false
+    place_jitter_m: 0.03
+    place_exclusion_radius_m: 0.15
+    homography_matrix:
+    - - 7.426233059959486e-05
+      - -0.0009147902019321918
+      - 0.5314759612083435
+    - - -0.0010214668000116944
+      - -7.420652400469407e-05
+      - 0.6713488101959229
+    - - -9.26314532989636e-06
+      - 0.000495159241836518
+      - 1.0
+    camera_matrix:
+    - - 2533.6118131921303
+      - 0.0
+      - 709.9385036537068
+    - - 0.0
+      - 2907.5545703577604
+      - 438.63205485038526
+    - - 0.0
+      - 0.0
+      - 1.0
+    dist_coeffs:
+    - -0.48522217845453014
+    - 22.21529602487404
+    - -0.049086355041394664
+    - -0.026114571400875596
+    - -194.07986227434841
+    yolo_http_url: http://127.0.0.1:8770/detect
+    yolo_conf: 0.5
+    yolo_iou: 0.45
+    yolo_two_frame_interval_s: 0.7
+    yolo_two_frame_iou: 0.3
+    grab_match_llm_base_url: https://api.deepseek.com/v1
+    grab_match_llm_api_key: <YOUR_LLM_API_KEY>
+    grab_match_llm_model: deepseek-v4-pro

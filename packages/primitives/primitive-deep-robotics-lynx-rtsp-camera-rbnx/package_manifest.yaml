@@ -1,0 +1,33 @@
+# DeepRobotics Lynx S10 狗自带相机原语 — mediamtx RTSP 拉流 → robonix 相机能力。
+#
+# 背景: InternVLA 导航需要可随时取一帧 RGB(DualVLN RGB-only, 已验证),
+# 狗相机由官方 robot_drivers(usb_cam_multi_node) 推流到 mediamtx RTSP。
+# 原语把 RTSP 流接进容器: 连续发布 rgb topic_out + 一对一 snapshot MCP,
+# 与 D435i 原语同接口, 上层 skill(如 internvla_navigation 的 CameraClient)
+# 通过 atlas 发现 snapshot 即可, 无品牌感知。
+#
+# Config (via Driver(CMD_INIT, config_json)):
+#   rtsp_url      default "rtsp://admin:drcam@123@10.21.33.103:8554/video4"
+#                 (凭据来自狗上 mediamtx.yml; video0/2/4/6 四路, 2 路活跃)
+#   camera_name   default "camera_lynx"    — ROS namespace（部署清单可覆盖）
+#   rgb_topic     default "/<camera_name>/color/image_raw"
+#   fps           default 30               — 仅节流发布(源帧率由相机决定)
+#   sentinel_timeout_s default 30.0
+manifestVersion: 1
+
+build: bash scripts/build.sh
+
+start: bash scripts/start.sh
+
+package:
+  name: "robonix.primitive.lynx_rtsp_camera"
+  version: 0.1.0
+  description: DeepRobotics Lynx S10 onboard cameras (mediamtx RTSP) — RGB topic + one-shot JPEG snapshot.
+  tags: [primitive, camera, rtsp, lynx_s10]
+  maintainers: [wheatfox <wheatfox17@icloud.com>]
+  license: Apache-2.0
+
+capabilities:
+  - name: robonix/primitive/camera/driver
+  - name: robonix/primitive/camera/rgb
+  - name: robonix/primitive/camera/snapshot

@@ -1,0 +1,22 @@
+manifestVersion: 1
+
+package:
+  name: robonix.skill.internvla_navigation
+  version: 0.1.0
+  description: Closed-loop visual navigation using InternVLA, a camera snapshot capability, and a chassis move capability.
+  tags: [skill, navigation, vla, internvla]
+  maintainers:
+    - ZLC (mujue) <mujue155@gmail.com>
+  license: MIT
+
+build: bash scripts/build.sh
+start: bash scripts/start.sh
+
+capabilities:
+  - name: robonix/skill/internvla_navigation/driver
+  - name: robonix/skill/internvla_navigation/navigate
+
+# Runtime capability discovery is performed through Atlas. `depends` is only
+# for source/build dependencies, so the camera and chassis do not belong here.
+depends: []
+

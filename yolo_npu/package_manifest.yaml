@@ -1,0 +1,14 @@
+manifestVersion: 1
+package:
+  name: robonix.service.perception.yolo_rk3588
+  version: 0.1.0
+  description: Host-side RK3588 NPU YOLO HTTP backend consumed by the Piper detection service and pick skill.
+  license: MulanPSL-2.0
+  tags: [service, perception, yolo, rk3588, npu, http]
+  maintainers: ["lhw2002426 <lhw2002426@users.noreply.github.com>"]
+build: bash setup_runtime.sh
+start: bash run_yolo_npu.sh
+# HTTP support process, not an Atlas provider. The Robonix-facing detection
+# contract belongs to service-object-detect-rbnx. Start this on the host,
+# outside the CPU-only ROS container; do not add it to rbnx service: entries.
+capabilities: []

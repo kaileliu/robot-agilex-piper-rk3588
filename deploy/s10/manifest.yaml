@@ -1,0 +1,400 @@
+# S10 部署清单：DEEP Robotics Lynx S10（轮足狗）+ 背上的 AgileX Piper 臂。
+#
+# 一个 boot 拉起全套：狗底盘 + 狗相机 + Piper 臂 + 臂上 D435i + 语音 + 抓取技能
+# + VLN 导航技能。**狗那几项目前是注释状态**（狗底盘故障），照常可跑的是"除狗以外"
+# 的部分；狗修好后取消注释即可（见 primitive/skill 段里的狗条目）。
+#
+# 所有包都是 packages/ 下的本地 path: 引用（相对本文件），boot 时不从任何远端
+# clone，所以这套部署不会被上游漂移悄悄改写。
+#   primitive: realsense_camera（臂上 D435i）-> piper_ctl -> piper_description
+#              -> audio_mic（语音输入）-> audio_client_bridge（远端喇叭/麦克风）
+#              [+ 狗: lynx_chassis, dog_rtsp_camera —— 注释状态]
+#   service:   llm_detect -> grasp_pose -> roboarm_ik -> speech
+#   skill:     pick（抓取）+ internvla_navigation（VLN 导航，注释状态）
+#
+# 姿态解算用 service-roboarm-ik-rbnx（纯 Python kinpy+scipy IK），不用 MoveIt；
+# 检测走宿主 GPU YOLO（技能内直连 :8770），不走 llm_detect。
+#
+# 密钥：本文件里一律是 <YOUR_...> 占位符。真实值放 deploy/s10/manifest.local.yaml
+# （.gitignore 里 *.local.yaml），boot 时用 rbnx boot -f deploy/s10/manifest.local.yaml。
+#
+# boot 顺序 = 声明顺序，提供者在前、消费者在后：
+#   1. rbnx 起 system 服务；2. soma stage 1 起 primitive；
+#   3. rbnx 起 service；4. soma stage 2 初始化 skill（首次调用才惰性激活）。
+
+manifestVersion: 1
+name: robonix-s10-full-deploy
+catalog:
+  name: robonix.robot.deep_robotics.lynx_s10_full
+  version: 0.1.0
+  description: S10 全栈：Lynx S10 狗底盘 + Piper 臂 + 狗相机(RTSP)/D435I 抓取视觉 + VLN 导航。一个 boot 统一驱动。
+  license: Apache-2.0
+  tags: [robot, deploy, lynx_s10, dog, piper, camera, manipulation, perception, grasp, voice, vln]
+
+# SPEECH_BACKEND 必须放在顶层 env:（而不是 speech 包的 config:）——speech 的
+# build.sh 从**进程环境**读它，而 rbnx build 只把"继承的环境 + RBNX_PACKAGE_ROOT"
+# 传给 build.sh，不传包的 config: 块。值 custom = 构建时跳过 `--extra local`
+# （不带 torch/funasr 等），容器保持"无 DL"；重活（FunASR）跑在宿主 :8771。
+# 只有 speech 包读这个变量。
+#
+# 腾讯云 TTS 凭据同理必须在顶层 env:：这两个键不在 speech_service 的
+# _CFG_ENV_MAP 里，写进 config: 会被静默丢弃。TTS 只需要这两个；ASR 走宿主
+# FunASR，不需要 TENCENT_ASR_APPID。
+#
+# 本部署的声音策略：听=真识别（宿主 FunASR），说=TTS 挂 mock（无扬声器，且
+# mock 让 Synthesize 成功返回，liaison 不再报 "tts skipped"）。要纯链路自测可把
+# SPEECH_BACKEND 改成 mock（ASR 也返回固定文本，不碰宿主/GPU）。
+env:
+  SPEECH_BACKEND: custom
+  # 腾讯云 TTS 凭据：真实值放本地清单 deploy/s10/manifest.local.yaml（gitignore）
+  # TENCENTCLOUD_SECRET_ID: <YOUR_TENCENT_SECRET_ID>
+  # TENCENTCLOUD_SECRET_KEY: <YOUR_TENCENT_SECRET_KEY>
+
+# listen: 0.0.0.0 on atlas/executor/liaison so the remote robonix-client (Windows
+# desktop, reverse audio bridge) can reach them; pilot/soma stay loopback-only.
+# NOTE this exposes them to the whole LAN with no TLS/auth — keep on a trusted
+# network or Tailscale, never a public interface.
+system:
+  atlas:
+    listen: 0.0.0.0:50051
+    log: info
+  executor:
+    listen: 0.0.0.0:50061
+    log: info
+  pilot:
+    listen: 127.0.0.1:50071
+    log: info
+    vlm:
+      upstream: https://api.deepseek.com/v1
+      api_key: <YOUR_LLM_API_KEY>
+      model: deepseek-v4-pro
+      api_format: openai
+  liaison:
+    listen: 0.0.0.0:50081
+    log: info
+  # soma: body-description + primitive/skill orchestration (v2 flat schema).
+  # robot_yaml/config are relative to this manifest dir (rbnx normalizes).
+  soma:
+    listen: 127.0.0.1:50091
+    log: info
+    provider_id: soma
+    # 狗底盘故障期间用纯臂本体描述；狗修好后改回狗那份（等狗栈一起搬进来）
+    robot_yaml: soma.yaml
+    config: soma_config.yaml
+
+primitive:
+  # S10 的相机是装在**臂上**的 D435i（不是顶部俯视相机，也不用 Orbbec）。
+  # 分辨率必须 1280x720x30——手眼标定（内参 + homography）就是按这个 profile 做的，
+  # 换分辨率会让检测坐标对不上。name 必须与 realsense_camera/main.py 里写死的 id 一致。
+  # 原语用官方 realsense-ros 架构 + pyrealsense2 后端；官方驱动的自动曝光在这台机上
+  # 失效，所以改手动 AE（EMA 平滑中位数 + 高光占比惩罚），已实测收敛。
+  - name: realsense_camera
+    path: ../../packages/primitives/primitive-intel-d435i-manual-ae-camera-rbnx
+    config:
+      camera_name: camera_435i
+      width: 1280
+      height: 720
+      fps: 30
+      sentinel_timeout_s: 30.0
+
+  # Piper arm. Must start before piper_description and roboarm_ik.
+  # CAN values below are for THIS host — verify can_port / usb_address on site.
+  - name: piper_ctl
+    path: ../../packages/primitives/primitive-agilex-piper-arm-rbnx
+    config:
+      can_port: can2           # fallback only — auto_can_setup 动态找 USB-CAN 口
+      can_bitrate: 1000000
+      can_usb_address: "1-4.1:1.0"   # 本机(新 Jetson) USB 路径；旧机是 1-4.4
+      auto_can_setup: true
+      auto_enable: true
+      gripper_exist: true
+      gripper_val_mutiple: 2       # upstream typo preserved
+      sentinel_timeout_s: 30.0
+
+  # Publishes the Piper TF tree from /arm/joint_states_single.
+  - name: piper_description
+    path: ../../packages/primitives/primitive-agilex-piper-description-rbnx
+    config: {}
+
+  # ── Microphone (voice path audio source) ────────────────────────────────
+  # 提供 robonix/primitive/audio/mic —— liaison 免手动语音循环要解析的契约。
+  # 跑在容器里，通过 `arecord` 抓宿主 USB 麦克风（UGREEN USB MIC-CM564, card 2）。
+  # mic_device 必须写 `plughw:2,0` 而不是 `hw:2,0`：这个麦原生 2ch/48kHz，raw hw
+  # 拒绝转换；plughw 会插入 ALSA 重采样/降混，得到 ASR 路径要的 16kHz 单声道 s16le。
+  - name: audio_mic
+    path: ../../packages/primitives/primitive-audio-mic-rbnx
+    config:
+      mic_device: "plughw:2,0"
+      mic_sample_rate: 16000
+      mic_channels: 1
+      mic_bits: 16
+      mic_chunk_ms: 100
+
+  # ── Reverse audio bridge (远端桌面麦克风 + 喇叭) ─────────────────────────
+  # 本部署没有本地扬声器原语（上面的 audio_mic 只提供麦克风），所以 liaison 会报
+  # "no RobonixPrimitiveAudioSpeaker provider"。这个桥把 PCM 通过反向 WebSocket
+  # 送到操作员桌面的 robonix-client，由那台机器的喇叭出声；同时它自己也提供
+  # audio/mic、list_devices、select_device、driver、bridge_info 几个契约。
+  #
+  # ⚠️ 契约冲突：它的 audio/mic、list_devices、select_device、driver 与上面的
+  # audio_mic 重复。atlas 允许（唯一性是按提供者算的），但 liaison 在**没有显式
+  # 指定节点**时按不确定顺序取第一个提供者，可能静默抓到另一台机器。所以两端都
+  # 必须显式钉住：客户端 Audio 面板里 Input/Output Primitive 选 audio_client_bridge
+  # 或 audio_mic，TUI 用 ROBONIX_CHAT_MIC_NODE / ROBONIX_CHAT_SPEAKER_NODE。
+  # 不要留空。
+  #
+  # listen_host 0.0.0.0 既无 TLS 也无鉴权：只接可信局域网或 Tailscale。
+  - name: audio_client_bridge
+    path: ../../packages/primitives/primitive-audio-client-bridge-rbnx
+    config:
+    transport: reverse
+    listen_host: 0.0.0.0
+    listen_port: 60002
+
+  # ── S10 机器狗部分（底盘 + 狗自带相机）──────────────────────────────────
+  # 狗底盘故障期间禁用，下面两个条目保持注释；狗修好后取消注释，并把 soma 的
+  # robot_yaml 改回狗那份描述。lynx_chassis 走 UDP RobotControl（robot_ip 在无线
+  # 网段），dry_run=true 只记录不下发——真机控制前先确认网络与急停。
+  # - name: lynx_chassis
+  #   path: ../../packages/primitives/primitive-deep-robotics-lynx-chassis-rbnx
+  #   config:
+  #     robot_ip: 10.21.33.103
+  #     robot_port: 30004
+  #     timeout: 3.0
+  #     ctl_hz: 20.0
+  #     # ratio：使用 Motion_Ctrl 比例控制；direct：使用 Real_Motion_Ctrl 真实速度控制
+  #     control_mode: ratio
+  #     # ratio 模式参数
+  #     forward_ratio: 0.30
+  #     turn_ratio: 0.40
+  #     forward_sec_per_meter: 4.0
+  #     turn_sec_per_degree: 0.0666667
+  #     # direct 模式参数
+  #     move_v: 0.20
+  #     turn_w: 0.50
+  #     default_dur: 0.50
+  #     yaw_sign: 1.0
+  #     dry_run: false
+
+  # 狗自带相机（mediamtx RTSP，video4 广角）——只给 VLN 导航用；
+  # 抓取视觉仍是上面的 D435i realsense_camera。
+  # - name: dog_rtsp_camera
+  #   path: ../../packages/primitives/primitive-dog-rtsp-camera-rbnx
+  #   config:
+  #     camera_name: camera_dog
+  #     rtsp_url: "rtsp://admin:drcam@123@10.21.33.103:8554/video4"
+
+service:
+  # 场景理解服务（RGB → bbox）。两个检测后端常驻：
+  #   * yolo_http —— 宿主 GPU YOLO（best.pt，只认 carrot/potato/tomato），抓取前要先起
+  #   * llm       —— 云端多模态模型，开放词表（任意物体名）
+  # ⚠️ 抓取技能**已经不再调用这个服务**（检测改成技能内做：直连宿主 YOLO :8770 /
+  # 直连 VLM）。保留它只为兼容别的手工脚本；确认没有别的消费者后可以整块删掉。
+  #
+  # name 必须是 `llm_detect`：包注册的 atlas capability id 就是它，atlas 会拒绝
+  # 与注册 id 不一致的清单名。契约路径仍是 robonix/service/perception/object_detect/*，
+  # 消费者按契约解析、不看这个名字。
+  - name: llm_detect
+    path: ../../packages/services/service-object-detect-rbnx
+    config:
+      detect_backend: yolo_http    # default backend when a call omits `backend`
+      # YOLO backend (fruit-tuned; used by pick/grab).
+      yolo_http_url: "http://127.0.0.1:8770/detect"
+      yolo_http_timeout_s: 10.0
+      yolo_conf: 0.5
+      yolo_iou: 0.45
+      # VLM 后端（开放词表）。必须是多模态（能看图）的模型：pilot 规划器是纯文本
+      # 模型，看图的活只有它干得了，所以单独留在 ikuncode/claude-opus-5。
+      llm_base_url: "https://api.ikuncode.cc/v1"
+      llm_api_key: "<YOUR_LLM_API_KEY>"
+      llm_model: "claude-opus-5"
+      llm_timeout_s: 60.0
+      temperature: 0.0
+      rotation_cam2arm: true       # VLM path only; yolo_http runs on raw frame
+      skip_depth: true             # vertical grasp: object_center_3d=[]
+      rgb_topic: "/camera_435i/color/image_raw"
+      camera_info_topic: "/camera_435i/color/camera_info"
+      camera_provider_id: realsense_camera   # S10 臂上相机（官方架构+UVC 后端）
+
+  # bbox 中心 → arm/base_link 的俯视抓取位姿（2D homography）。
+  # 矩阵是 S10 自己标定的那份（臂上 D435i，去畸变图上采点），直接内联在这里，
+  # 所以运行时不需要任何标定文件在本地。
+  # default_desktop_height 是**夹爪合拢高度**（S10 实测的抓取 z = 桌面 −0.0263
+  # 加 2cm 余量）；别拿别的部署的值套（各部署的臂基座坐标系不同）。
+  - name: grasp_pose
+    path: ../../packages/services/service-grasp-pose-rbnx
+    config:
+      homography_matrix:
+        - [-7.5229480e-05, -5.5519311e-04, 6.9901943e-01]
+        - [-5.5901916e-04, 1.7398441e-05, 4.0226412e-01]
+        - [-1.7284082e-04, -3.7524169e-05, 1.0000000e+00]
+      default_desktop_height: -0.0063
+      catch_offset: 0.0
+      gripper_width_default: 0.04
+      box_rotation_deg: 0.0
+      bias_x: 0.0
+      bias_y: 0.0
+      output_frame: "arm/base_link"
+
+  # 纯 Python IK 执行器（kinpy + scipy SLSQP），替代 piper_moveit：解
+  # execute_grasp/reset/teach_safe/put_down，把关节指令发给 piper_ctl。
+  #
+  # 下面三个关节角都是**本部署示教/实测**出来的，不能拿别的部署的值套：
+  #   init_joints_deg      观察位 = 拍照时的固定姿态（相机在臂上，必须回到这个
+  #                        姿态才拍得准；标定也是在这个姿态下做的）
+  #   teach_safe_joints_deg 抓完保持握持时停的位置（本部署就是零位 [0,...,0]）
+  #   put_down_joints_deg  操作服务自带的固定释放位（技能不用它——技能是就地张爪）
+  - name: roboarm_ik
+    path: ../../packages/services/service-roboarm-ik-rbnx
+    config:
+      # URDF 必须显式指定：包内的自动查找只认 <仓库根>/urdf/piper.urdf（旧仓库的
+      # 布局），而本仓库把各部署的 URDF 放在 deploy/<系统>/urdf/ 下——不配就会在
+      # init 时报 "cannot locate Piper URDF"。
+      urdf_path: "/root/workspace/deploy/s10/urdf/piper.urdf"
+      # S10：臂上 D435i，观察位姿=示教确认的标定位姿（s10_calib_pose.json）
+      init_joints_deg: [1.13, 86.36, -97.62, 6.34, 69.99, 0.0]
+      # S10：grab 成功后的保持位姿 = 零点位 [0,0,0,0,0,0]（用户要求，保持着抓取）
+      teach_safe_joints_deg: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      put_down_joints_deg: [2.990407, 166.783154, -70.978190, -4.119805, 1.697096, 10.370476]
+      carry_to_teach_safe_waypoints_deg:
+        - [1.711088, 81.721467, -80.833939, -3.718019, 49.375697, -6.657454]
+      reset_feedback_timeout_s: 8.0
+      max_gripper_width: 0.08
+
+  # ── 语音（容器内薄服务 + 宿主 FunASR 模型）──────────────────────────────
+  # 与 YOLO 那条缝同构（容器无 DL，重活跑宿主）：torch+CUDA 的 FunASR 流式模型在
+  # 宿主上跑（docker/host-services/run_funasr_server.sh，ws://127.0.0.1:8771）；
+  # 容器内的 speech 服务把麦克风 PCM 通过 --net host 的 localhost 转发给它，再把
+  # 识别事件转回来（remote_asr:RemoteFunASRStreamingBackend）。
+  #
+  # ASR 与 TTS 是**两个独立槽位**，可以来自不同厂商：
+  #   * 流式 ASR -> 宿主 FunASR（免费、GPU、不出局域网）
+  #   * TTS      -> 本部署挂的是 mock（没有扬声器；见下面 speech_tts_backend_class）
+  # 唤醒词的 KWS 模型是 CPU/onnx，留在容器内。
+  #
+  # 凭据坏掉时 _try_backend 会吞掉异常、TTS 变成 None：服务照常起、ASR 照常工作，
+  # 所以 TTS 出问题不会拖垮语音输入。
+  #
+  # provider id 必须是 `speech`（包注册的就是这个 id，atlas 拒绝不一致的清单名）。
+  # 宿主服务没起时本服务仍注册为 ACTIVE——影响只在每次识别时报错，不影响能力发现。
+  - name: speech
+    path: ../../packages/services/service-speech
+    config:
+      speech_backend: custom
+      speech_asr_stream_backend_class: "speech_service.remote_asr:RemoteFunASRStreamingBackend"
+      funasr_remote_url: "ws://127.0.0.1:8771"
+      wake_words: ["罗伯特"]
+      # ASR 最终识别文本追加写入该文件(格式: 序号\t时间戳(上海时区)\t文本)。
+      # 为空则关闭。
+      asr_log_file: "/root/workspace/deploy/s10/rbnx-boot/logs/asr_transcripts.log"
+      # TTS 挂 mock：MockTTSBackend 返回 100ms 静音，所以 Synthesize 会**成功**、
+      # liaison 不再报 "tts skipped: TTS backend not available"，但也没有声音
+      # （这台机本来就没有扬声器）。ASR 不受影响。注释掉这行 = TTS UNAVAILABLE；
+      # 想用腾讯 TTS 就换成 tencent 的类 + 顶层 SPEECH_BACKEND=tencent。
+      speech_tts_backend_class: "speech_service.service:MockTTSBackend"
+      # tencent_tts_voice_type: 1001
+      # tencent_tts_region: ap-guangzhou
+      # Only affects the speech service's own `speak` capability; liaison's voice
+      # loop resolves the speaker through its own speaker_node_id pin instead, so
+      # the client must ALSO pin Output Primitive to audio_client_bridge.
+      # default_speaker_provider_id: audio_client_bridge
+
+skill:
+  # 抓取技能，三个工具：grab（抓起并保持握持）/ put_in_box（搬进盒子）/ put_down
+  # （原地松手）。流程与自检都在包内（pick_skill/），这里只给配置。
+  # 检测在技能内做（宿主 YOLO :8770 全量检测 + LLM 措辞匹配，或直连 VLM 定位），
+  # 不经过 llm_detect 服务。
+  #
+  # place_positions 是**落盒点**（只有一个盒子，几项都指同一个点，供盒内排除与
+  # 放置使用）；放置高度由下面的高度模型给。
+  - name: pick
+    path: ../../packages/skills/skill-pick-vertical-grasp-rbnx
+    config:
+      place_positions:
+        carrot: [0.05, 0.35]
+        potato: [0.05, 0.35]
+        tomato: [0.05, 0.35]
+      place_fallback_xy: [0.1, 0.0]
+      # ── 高度模型：一个绝对量 + 两个偏移，全在 arm/base_link ──────────────
+      # desktop_height 是"桌面相对臂基座"的高度，S10 实测 -0.0263（臂挂狗背，
+      # 与纯臂完全不同，必须按本部署标定填）。抓取点仍由 grasp_pose 服务算
+      # （它配的 -0.0063 = 桌面 + 2cm），与 desktop_height + grasp_offset 一致。
+      desktop_height: -0.0263
+      grasp_offset: 0.02
+      travel_offset: 0.10
+      # true = 先降到落点再张爪（对齐 roboarm）；false = 投放模式：停在悬停位
+      # 就地张爪，物体自己掉进盒子（落差 = travel_offset − grasp_offset）。
+      place_go_down_before_open: false
+      # 检测方案: yolo=宿主 GPU YOLO 全量检测 + LLM 措辞匹配（默认）；
+      # vlm=把用户请求直接交给多模态模型定位 bbox（无需措辞匹配）。
+      detect_scheme: yolo
+      grab_vlm_base_url: "https://api.ofox.io/v1"
+      grab_vlm_api_key: "<YOUR_LLM_API_KEY>"
+      grab_vlm_model: "gpt-5.6-sol"
+      # 实时开关文件: 每次放置/检测都重读, 改文件即时生效无需重启。
+      # 内容(每行一个 key=value, 缺省回落配置值):
+      #   place_go_down_before_open=true|false   (true=下降放置, false=半空丢下)
+      #   detect_scheme=yolo|vlm                 (vlm=直接把用户请求给多模态VLM定位)
+      runtime_config_file: "/root/workspace/deploy/s10/rbnx-boot/runtime_config.txt"
+      # Random-drop switch, OFF by default: every sort lands exactly at the
+      # fixed box centre. Enable to scatter repeated drops of the same kind
+      # by ±place_jitter_m so they don't stack on one spot.
+      place_jitter_enabled: false
+      place_jitter_m: 0.03
+      # 落盒点这个半径（米）内的检测框视为"已经分拣进盒"的物体，在措辞匹配之前
+      # 就剔掉——否则分拣循环会把盒里的东西再抓一次。0 = 关闭。
+      place_exclusion_radius_m: 0.15
+      # 像素 → arm/base_link 的 homography（与 grasp_pose 同一份矩阵），用于
+      # 上面那条"盒内排除"判定。
+      homography_matrix:
+        - [-7.5229480e-05, -5.5519311e-04, 6.9901943e-01]
+        - [-5.5901916e-04, 1.7398441e-05, 4.0226412e-01]
+        - [-1.7284082e-04, -3.7524169e-05, 1.0000000e+00]
+      # S10 标定内参(2026-08-27, tools/calibration/s10/artifacts/intrinsics,
+      # UVC D435i 1280x720；重标见 tools/calibration/s10/README.md):
+      # 手眼矩阵在"去畸变图"上采点, 管线必须用同一内参去畸变后再检测。
+      # 旧 Orbbec 值(2533/2907)会导致 UVC 帧被错误去畸变 → YOLO 检不到。
+      camera_matrix:
+        - [1011.06413, 0.0, 653.217405]
+        - [0.0, 1012.59558, 327.489696]
+        - [0.0, 0.0, 1.0]
+      dist_coeffs: [0.212463404, -0.839197827, -0.00260734629, -0.000805263358, 1.00183536]
+      # grab 内部直连宿主 GPU YOLO 做全量检测(绕过 llm_detect),再与用户
+      # 请求匹配。yolo_http_url 即宿主 YOLO server(docker/host-services)。
+      yolo_http_url: "http://127.0.0.1:8770/detect"
+      yolo_conf: 0.5            # 置信度下限; 真目标土豆~0.52/胡萝卜~0.54, 0.6 会误伤;
+      # 幽灵误检(0.3-0.6)由双帧一致性兜底
+      yolo_iou: 0.45
+      # 双帧一致性:两帧间隔(秒)与同物判定 IoU。真目标稳定出现,闪烁误检被滤掉。
+      yolo_two_frame_interval_s: 0.7
+      yolo_two_frame_iou: 0.3
+      # grab 目标匹配 LLM:与 pilot 规划器同款(deepseek, 纯文本匹配即可)。
+      grab_match_llm_base_url: "https://api.deepseek.com/v1"
+      grab_match_llm_api_key: "<YOUR_LLM_API_KEY>"
+      grab_match_llm_model: "deepseek-v4-pro"
+
+  # VLA 抓取路径（openvla_client）已停用；包仍在 packages/skills/skill-vla-openpi-rbnx，
+  # 要恢复就从那里取条目。
+
+  # ── VLN 导航 skill（S10 狗）───────────────────────────────────────────
+  # 依赖 ① 宿主 127.0.0.1:5801 的 InternVLA server（没起时本 skill 注册失败但
+  # 非致命）② atlas 上的 camera/snapshot（dog_rtsp_camera）与 chassis/move
+  # （lynx_chassis）。狗底盘故障期间注释掉——导航没有底盘可指挥。
+  # - name: internvla_navigation
+  #   path: ../../packages/skills/skill-internvla-navigation-rbnx
+  #   config:
+  #     server_url: http://127.0.0.1:5801
+  #     client_id: lynx-01
+
+  #     request_timeout_sec: 100.0
+  #     camera_timeout_sec: 10.0
+  #     chassis_timeout_sec: 10.0
+
+  #     max_steps: 100
+  #     timeout_sec: 300.0
+  #     wait_interval_sec: 0.30
+
+  #     lookahead_m: 0.30
+  #     discrete_forward_m: 0.25
+  #     turn_threshold_deg: 15.0
+  #     discrete_step_deg: 15.0

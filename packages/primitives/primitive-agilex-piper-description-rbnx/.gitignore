@@ -1,0 +1,11 @@
+rbnx-build/
+build/
+install/
+log/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+.vscode/
+.idea/

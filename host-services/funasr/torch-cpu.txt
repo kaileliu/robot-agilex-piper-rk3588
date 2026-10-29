@@ -1,0 +1,7 @@
+# RK3588（无 CUDA）的 CPU 版 torch + torchaudio。理由同 yolo/torch-cpu.txt：
+# Rockchip SoC 没有 CUDA，装 aarch64 的 CPU-only 轮子，推理走 CPU。
+# 版本对齐 Thor 那套（torch 2.11 / torchaudio 2.11），与 funasr 1.3.26 搭配一致。
+# 注意：CPU 流式识别慢于实时（run 脚本注释里 ~1.6×），只影响语音、不影响抓取。
+--index-url https://mirrors.ustc.edu.cn/pypi/simple
+torch==2.11.0
+torchaudio==2.11.0

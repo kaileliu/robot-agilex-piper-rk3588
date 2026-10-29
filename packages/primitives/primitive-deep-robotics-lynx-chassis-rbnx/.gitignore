@@ -1,0 +1,6 @@
+rbnx-build/
+logs/
+udp_logs/
+__pycache__/
+*.pyc
+.venv/

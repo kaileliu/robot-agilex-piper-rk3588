@@ -1,0 +1,32 @@
+name: Package submission preflight
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/checkout@v4
+        with:
+          repository: syswonder/robonix-package-catalog
+          ref: 65cf91c32acb52e0ec72ff7ef4a003c02c78f00f
+          path: .catalog-checker
+      - uses: actions/checkout@v4
+        with:
+          repository: syswonder/robonix
+          ref: fb68bc52f9bb9e2bb57337332d32357340d16968
+          path: vendor/robonix
+          submodules: recursive
+      - run: python -m pip install -r catalog/requirements.txt
+      - name: Validate catalog submission
+        env:
+          REPO_URL: https://github.com/${{ github.repository }}
+        run: python scripts/check_package_submission.py --catalog-source .catalog-checker --repo "$REPO_URL"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: catalog-submission
+          path: dist/catalog/

@@ -1,0 +1,6 @@
+# Orin（sm_87）的 torch + torchaudio。理由同 yolo/torch-orin.txt：
+# 镜像站上 aarch64 的轮子没有 sm_87 的 kernel，必须从 Jetson 索引装，
+# 而且这份要单独装、索引只给这一个。
+--index-url https://pypi.jetson-ai-lab.io/jp6/cu126
+torch==2.10.0
+torchaudio==2.10.0

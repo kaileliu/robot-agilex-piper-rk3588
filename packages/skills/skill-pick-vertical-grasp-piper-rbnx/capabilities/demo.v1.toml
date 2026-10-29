@@ -1,0 +1,21 @@
+# robonix/skill/pick/demo — 演示：把指定物体在两个固定点之间来回分拣。
+#
+# User-invocable atomic intent: "演示一下把它来回搬" / "demo the shuttling".
+# 每轮的步骤与 pick 完全同源：
+#   1. 先检测一次（要知道物体此刻在哪）——不排除"盒内"的物体，因为演示时它本来
+#      就可能停在两个演示点附近；
+#   2. 抓起（与 grab 同一段 _grasp_object）；
+#   3. 送到"离它更远的那个点"（与 put_in_box 同一段 _place_at），于是物体在
+#      demo_pos_a / demo_pos_b 之间往返；
+#   4. 停 ~3 秒，重复。
+#
+# 轮数：demo_rounds > 0 就跑这么多轮；0 或省略则一直跑到本次调用的时间预算快用完。
+# 检测在技能内做（宿主 YOLO / 直连 VLM），不经过 object_detect 服务。
+[contract]
+id      = "robonix/skill/pick/demo"
+version = "1"
+kind    = "skill"
+idl     = "demo/srv/Demo.srv"
+
+[mode]
+type = "rpc"

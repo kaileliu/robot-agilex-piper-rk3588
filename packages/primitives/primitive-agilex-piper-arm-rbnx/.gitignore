@@ -1,0 +1,13 @@
+rbnx-build/
+build/
+install/
+log/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+.vscode/
+.idea/
+*.swp

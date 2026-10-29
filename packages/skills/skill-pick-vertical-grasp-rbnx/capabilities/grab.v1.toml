@@ -1,0 +1,24 @@
+# robonix/skill/pick/grab — grasp a named object and KEEP HOLDING it.
+#
+# User-invocable atomic intent: "pick it up / hand it to me" — grasp the
+# object and leave it in the gripper (no place, no release). Internally:
+#   1. 技能内检测 (undistort → YOLO detect-all + LLM match / VLM locate)
+#   2. service/perception/grasp_pose/grasp_request     — compute a grasp
+#   3. service/manipulation/execute_grasp              — drive the arm
+# then parks at teach_safe WITH the gripper closed (hold_gripper) instead of
+# placing the object and returning home.
+# The object_detect service is deliberately NOT used (S10 does not deploy it).
+#
+# Reuses Pick.srv verbatim (request = object_name; response = success/pose/…),
+# so no new codegen is required.
+#
+# Synchronous: blocks until the arm finishes the grasp (success) or the budget
+# is exhausted (timeout), mirroring pick.
+[contract]
+id      = "robonix/skill/pick/grab"
+version = "1"
+kind    = "skill"
+idl     = "pick/srv/Pick.srv"
+
+[mode]
+type = "rpc"

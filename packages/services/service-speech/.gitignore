@@ -1,0 +1,10 @@
+# All generated artefacts (uv venv, codegen output, runtime data) under rbnx-build/.
+rbnx-build/
+proto_gen/
+robonix_mcp_types/
+*.log
+__pycache__/
+# setuptools build metadata written into the vendored robonix-api during uv sync
+vendor/robonix-api/*.egg-info/
+vendor/robonix-api/build/
+vendor/**/__pycache__/

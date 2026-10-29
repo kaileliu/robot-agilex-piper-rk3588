@@ -1,0 +1,11 @@
+{
+  "joints_deg": [
+    -90.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "description": "Copied observation pose; not executed during setup"
+}

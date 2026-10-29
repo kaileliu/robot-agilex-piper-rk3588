@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<robot name="deep_robotics_lynx_s10">
+  <link name="base_link"/>
+</robot>

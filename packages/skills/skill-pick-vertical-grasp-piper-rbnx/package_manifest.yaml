@@ -1,0 +1,97 @@
+# pick_skill_rbnx — 纯臂抓取技能（grab / pick / demo / put_in_box / put_down + driver）。
+#
+# kind: skill (user-invocable atomic intent). Pilot 的 LLM 调 robonix/skill/pick/*
+# 下的工具，技能再按顺序编排上游服务：
+#   * 技能内检测（相机帧 → 宿主 YOLO 全量检测 + LLM 措辞匹配，或直连 VLM 定位）
+#   * service/perception/grasp_pose/grasp_request        (grasp_pose)
+#   * service/manipulation/execute_grasp / reset / teach_safe   (roboarm_ik)
+# object_detect 服务（llm_detect）刻意不用：检测在技能内做。
+#
+# 上游契约与臂/相机原语话题（arm/joint_states、arm/joint_command、camera/rgb）
+# 全部经 atlas 解析，技能里不写死话题名；解析不到就报错，不猜。
+#
+# Upstream calls are resolved through Atlas. All of them are gRPC
+# (grasp_request / execute_grasp / reset / teach_safe).
+# There is intentionally no fallback to the legacy ROS service/topic path —
+# the LLM-facing surface speaks robonix contracts.
+#
+# Lifecycle (per Robonix developer guide §5 — skills are different):
+#   CMD_INIT      -> on_init: light. State machine reaches
+#                    INITIALIZED at boot even if upstream peers are
+#                    still warming up. cfg parsed here; the Clients and Arm
+#                    objects are constructed but do not touch atlas or ROS.
+#   CMD_ACTIVATE  -> on_activate: executor sends this on the FIRST
+#                    LLM call. Resolve upstream endpoints (block up to
+#                    60s waiting for them), hand them to the Arm, start its
+#                    ROS node (joint feedback + joint_command + camera).
+#   CMD_DEACTIVATE -> on_deactivate: drop endpoints; stop the ROS node and
+#                    close the gRPC client cache (arm.shutdown()).
+#
+# Capability surface (all under robonix/skill/pick/*):
+#   driver     — auto-declared by the framework (lifecycle gRPC entry).
+#   grab       — MCP tool: 抓起并保持握持，成功时**停在悬停位**（抓取点正上方，
+#                夹爪闭合、无横向移动）；要放进盒子接着用 put_in_box。
+#   pick       — MCP tool: 分拣 = grab 的抓取段 + put_in_box 的放置段
+#                （一处拿起、另一处放下），空手回安全位。
+#   demo       — MCP tool: 在 demo_pos_a / demo_pos_b 两点之间来回分拣同一物体。
+#   put_in_box — MCP tool: 把已握着的东西搬进盒子、释放、回安全位。
+#   put_down   — MCP tool: 就地张爪（零臂运动）。
+#
+# 抓取段与放置段是公共件（_grasp_object / _place_at），grab、pick、demo、
+# put_in_box 都调它们——所以这几个工具的行为永远一致。
+#
+# Synchronous-tool design (vs explore_rbnx's task_id model):
+#   grab / put_in_box / put_down are synchronous, and the LLM-driven use case
+#   is "block until done; either it worked or it didn't". So there are no
+#   task_id / status / cancel siblings.
+#   If async is needed later, add them as a separate breaking
+#   contract bump rather than retrofitting.
+#
+# Config (passed via Driver(CMD_INIT, config_json)):
+#   工具本身不收参数；每次调用按各自的 60 s 预算走，grab/pick/demo 每次只试一次抓取。
+#   gripper_open_width   default 0.08  — metres
+#   gripper_close_width  default 0.0   — metres
+#   gripper_grasp_threshold_width default 0.005 — held-object threshold
+#   gripper_feedback_timeout_s default 2.0
+#   gripper_joint_states_topic / gripper_joint_command_topic  默认空：由 atlas 解析
+#                        `robonix/primitive/arm/*` 得到，只有在需要显式指定时才配。
+#   camera_topic        默认空：同样由 atlas 解析 `robonix/primitive/camera/rgb`。
+#   demo_pos_a / demo_pos_b  default [0.25,0.0] / [0.1,0.35] — demo 往返的两点。
+#   ── 高度模型（米，arm/base_link 坐标系）── 一个绝对量 + 两个偏移：
+#   desktop_height       default 0.115 — 桌面高度。**每个部署必须自己配**：坐标系
+#                        跟着臂基座走，臂装在哪儿它就在哪儿（实验台 vs 狗背各不相同）。
+#   grasp_offset         default 0.02  — 贴桌高度 = desktop_height + 它：夹爪合拢、
+#                        贴桌面放置都用这个高度。
+#   travel_offset        default 0.10  — 腾挪高度 = desktop_height + 它：抓取悬停、
+#                        抓起抬起、搬运到盒子上方、投放模式的松手点，统一用它。
+#   抓取点的 z 仍由 grasp_pose 服务算（它自己的 default_desktop_height），按模型
+#   应等于 desktop_height + grasp_offset；不一致时技能每次抓取都会告警。
+#   旧键名 approach_dist / place_raise_height 仍接受（等同 travel_offset）。
+manifestVersion: 1
+
+package:
+  name: robonix.skill.pick.vertical_grasp_piper.piper_rk3588
+  version: 0.1.0
+  vendor: robonix
+  description: 纯臂抓取技能 — pick（分拣）/ demo（两点往返演示）/ grab（抓起保持）/ put_in_box（放盒）/ put_down（就地松手）。
+  license: MulanPSL-2.0
+  tags: [skill, pick, manipulation, grasp]
+  maintainers: ["lhw2002426 <lhw2002426@users.noreply.github.com>"]
+
+build: bash scripts/build.sh
+start: bash scripts/start.sh
+
+capabilities:
+  - name: robonix/skill/pick/driver
+    transport: grpc
+  - name: robonix/skill/pick/pick
+    transport: mcp
+  - name: robonix/skill/pick/demo
+    transport: mcp
+  - name: robonix/skill/pick/grab
+    transport: mcp
+  - name: robonix/skill/pick/put_in_box
+    transport: mcp
+  - name: robonix/skill/pick/put_down
+    transport: mcp
+

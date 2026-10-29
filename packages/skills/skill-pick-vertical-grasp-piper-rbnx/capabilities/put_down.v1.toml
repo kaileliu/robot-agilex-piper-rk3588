@@ -1,0 +1,16 @@
+# robonix/skill/pick/put_down — release the held object where the arm is.
+#
+# User-invocable atomic intent: "put down / release what the arm is holding".
+# Internally reads the live arm joint feedback (primitive contract
+# robonix/primitive/arm/joint_states) and republishes it UNCHANGED on the arm
+# primitive's joint_command contract with only the gripper opened — zero arm
+# motion, no manipulation service involved. 话题名与 QoS 都由 atlas 解析，
+# 技能不写死。
+[contract]
+id      = "robonix/skill/pick/put_down"
+version = "1"
+kind    = "skill"
+idl     = "pick/srv/PutDown.srv"
+
+[mode]
+type = "rpc"

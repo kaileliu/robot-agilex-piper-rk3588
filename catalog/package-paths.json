@@ -1,0 +1,13 @@
+[
+  "packages/primitives/primitive-orbbec-dabai_dcw-camera-rbnx",
+  "packages/primitives/primitive-agilex-piper-arm-rbnx",
+  "packages/primitives/primitive-agilex-piper-description-rbnx",
+  "packages/primitives/primitive-audio-mic-rbnx",
+  "packages/primitives/primitive-audio-client-bridge-rbnx",
+  "packages/services/service-object-detect-rbnx",
+  "packages/services/service-grasp-pose-rbnx",
+  "packages/services/service-roboarm-ik-rbnx",
+  "packages/services/service-speech",
+  "packages/skills/skill-pick-vertical-grasp-piper-rbnx",
+  "yolo_npu"
+]

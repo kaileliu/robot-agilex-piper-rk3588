@@ -1,0 +1,55 @@
+# Microphone audio primitive — host-side ALSA capture for the voice path.
+# Owns:
+#   robonix/primitive/audio/mic            → gRPC server-stream AudioChunk
+#   robonix/primitive/audio/driver         → gRPC LifecycleDriver(INIT/UP/DOWN/SHUTDOWN)
+#   robonix/primitive/audio/list_devices   → enumerate ALSA capture devices
+#   robonix/primitive/audio/select_device  → repick capture device at runtime
+#
+# Provides the mic contract that liaison's handsfree voice loop resolves
+# (MIC_CONTRACT = "robonix/primitive/audio/mic"). Without a provider for
+# this contract, liaison fails wake-word wait with "no mic provider" and
+# the whole voice chain (wake → listen → ASR → pilot) can't start.
+#
+# Speaker/TTS is intentionally OMITTED — this deploy has no TTS; the voice
+# "reply" is an action + a text response surfaced via VoiceEvent/pilot logs.
+#
+# Runs INSIDE the robonix container (rbnx boot spawns it like every other
+# package). The container is started with -v /dev:/dev AND
+# -v /proc/asound:/proc/asound (see docker/run.sh) so ALSA can enumerate
+# the host USB mic (card 2, UGREEN USB MIC-CM564 → hw:2,0). Capture uses
+# the `arecord` CLI, installed into the venv-less runtime by build.sh.
+#
+# Config schema consumed by the on_init handler (audio_mic.main):
+#   mic_device:       str — ALSA device id (e.g. "hw:2,0"); empty = auto-detect (prefers USB)
+#   mic_sample_rate:  int — capture Hz (default 16000, what the ASR path wants)
+#   mic_channels:     int — channel count (default 1 = mono)
+#   mic_bits:         int — bits per sample (default 16 = s16le)
+#   mic_chunk_ms:     int — chunk duration per read in ms (default 100)
+manifestVersion: 1
+
+package:
+  name: robonix.primitive.audio.mic.piper_rk3588
+  version: 0.1.0
+  vendor: robonix
+  description: Microphone capture primitive (arecord) for robonix/primitive/audio/mic.
+  license: MulanPSL-2.0
+  tags: [primitive, audio, alsa, microphone, piper, rk3588]
+  maintainers: ["lhw2002426 <lhw2002426@users.noreply.github.com>"]
+
+build: bash scripts/build.sh
+start: bash scripts/start.sh
+
+stop: |
+  pkill -TERM -f "[p]ython3 -m audio_mic.main|[a]udio_mic.main" 2>/dev/null || true
+  sleep 1
+  pkill -KILL -f "[p]ython3 -m audio_mic.main|[a]udio_mic.main" 2>/dev/null || true
+
+capabilities:
+  - name: robonix/primitive/audio/mic
+    transport: grpc
+  - name: robonix/primitive/audio/driver
+    transport: grpc
+  - name: robonix/primitive/audio/list_devices
+    transport: grpc
+  - name: robonix/primitive/audio/select_device
+    transport: grpc

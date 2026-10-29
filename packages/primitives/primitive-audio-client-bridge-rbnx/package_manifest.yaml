@@ -1,0 +1,52 @@
+# Audio primitive (audio client bridge variant) — routes Robonix audio through
+# a remote robonix-client while Atlas, Pilot, and Liaison run on the robot.
+#
+# The client opens one outbound WebSocket to this package on the Linux host.
+# The robot therefore does not store a client IP address. This package
+# registers the usual `robonix/primitive/audio/{mic,speaker,driver}` contracts
+# with Atlas and relays the connected client's PCM frames.
+#
+# Same wire format as audio_driver (16 kHz / mono / s16le PCM in
+# AudioChunk frames) so liaison / scene / TTS see no difference.
+manifestVersion: 1
+
+package:
+  name: robonix.primitive.audio.client_bridge.piper_rk3588
+  version: 0.1.0
+  description: Audio primitive that connects Robonix to robonix-client microphone and speaker devices.
+  tags: [primitive, audio, client, websocket, microphone, speaker]
+  maintainers: [wheatfox <wheatfox17@icloud.com>]
+  license: MulanPSL-2.0
+
+# Distinct provider_id from `audio_driver` (`.alsa`) so both can co-exist in
+# atlas — the rbnx chat provider_id picker then has a real choice. Same
+# `robonix/primitive/audio/*` contract surface as audio_driver, so
+# consumers (liaison voice path, scene optional audio) don't care
+# which backend is loaded.
+
+build: bash scripts/build.sh
+start: bash scripts/start.sh
+
+# 1 package = 1 cap. The client_audio_server daemon on the
+# client side enumerates client audio devices; we surface them through the
+# optional list_devices/select_device contracts so the user can pick
+# which physical mic/speaker the cap's driver routes to. Those client audio
+# devices are driver-internal — not separate robonix caps.
+stop: |
+  pkill -TERM -f "[p]ython3 -m audio_client_bridge.main" 2>/dev/null || true
+  sleep 1
+  pkill -KILL -f "[p]ython3 -m audio_client_bridge.main" 2>/dev/null || true
+
+capabilities:
+  - name: robonix/primitive/audio/mic
+    transport: grpc
+  - name: robonix/primitive/audio/speaker
+    transport: grpc
+  - name: robonix/primitive/audio/driver
+    transport: grpc
+  - name: robonix/primitive/audio/list_devices
+    transport: grpc
+  - name: robonix/primitive/audio/select_device
+    transport: grpc
+  - name: robonix/primitive/audio/bridge_info
+    transport: grpc

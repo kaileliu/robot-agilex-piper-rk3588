@@ -1,0 +1,4 @@
+# Thor（sm_110，CUDA 13）的 torch + torchaudio：走镜像站即可（cu130 轮子带 sm_110）。
+--index-url https://mirrors.ustc.edu.cn/pypi/simple
+torch==2.11.0
+torchaudio==2.11.0

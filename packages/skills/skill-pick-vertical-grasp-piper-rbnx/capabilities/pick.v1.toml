@@ -1,0 +1,23 @@
+# robonix/skill/pick/pick — 分拣：抓起一个物体、搬进盒子、空手回位。
+#
+# User-invocable atomic intent: "go grasp the X for me" / "把X放进盒子"。
+# 内部就是两个已有工具的串联，不额外发明动作：
+#   1. grab(object_name)      —— 观察位 → 技能内检测 → grasp_request →
+#                                三段式竖直抓取 + 夹爪校验 → 保持握持回安全位
+#   2. put_in_box()           —— 搬到盒子上方 → 释放 → 空手回安全位
+# 检测在技能内做（宿主 YOLO 全量检测 + LLM 措辞匹配，或直连 VLM 定位），
+# 不经过 object_detect 服务。
+#
+# 每次只分拣一个物体；目标不在桌面时报 "object not detected"，pilot 据此回答
+# "没有X"。要"抓起来递给我/一直拿着"用 grab，不是本工具。
+#
+# Synchronous: blocks until the object is in the box and the arm is parked, or it
+# raises (grasp failure → 张爪复位；搬运失败 → 保持握持不复位，可重试)。
+[contract]
+id      = "robonix/skill/pick/pick"
+version = "1"
+kind    = "skill"
+idl     = "pick/srv/Pick.srv"
+
+[mode]
+type = "rpc"

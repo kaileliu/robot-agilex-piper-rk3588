@@ -1,0 +1,6 @@
+# Keep protoc, its Python plugin, and the runtime loading generated modules in
+# one coherent package-owned environment.
+grpcio==1.80.0
+grpcio-tools==1.76.0
+protobuf==6.33.6
+websockets>=12,<16

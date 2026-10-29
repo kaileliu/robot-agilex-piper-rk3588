@@ -1,0 +1,34 @@
+# piper 标定的配置——每个键都注明谁在读它。
+#
+# 标定本身只需要臂（同一个臂、同一套 CAN，代码在 common/robot/）；这里的抓取类参数
+# 是给共用的 arm 后端用的（它构造时会读一遍，所以键必须存在）。
+
+# ===== 机械臂 =====
+# CAN 口：默认自动探测（同臂原语，按 sysfs 拓扑认 USB-CAN）。这里只在探测不到时当退路。
+arm_port: ""
+
+# 机械臂类型；common/robot/arm.py 按它选后端（本仓库只有 piper 后端）
+arm_type: piper
+
+# 关节角向量允许的均方误差阈值（平方度），小于它算到位
+arm_reach_mse_threshold_deg2: 1.0
+
+# 抓取动作之间的停顿（秒）
+catch_time_interval_s: 0.5
+
+# 读关节角的重试次数
+get_arm_angles_retry_times: 3
+
+# 桌面在臂基座系的高度（米）——piper 部署长期验证过的合爪高度，也是「验证」页默认的
+# 目标 z（roboarm 文档与清单里都是 0.135）。换安装方式必须重测。
+default_desktop_height: 0.135
+
+# 抓取前抬起、放置前抬起的高度（米）；本子树不做抓取，仅共用后端要读
+catch_raise_height: 0.1
+place_raise_height: 0.1
+
+# 夹爪闭合阈值 [0,1]：小于它认为没夹住
+default_gripper_close_threshold: 0.05
+
+# 放置时是否先下降再张开夹爪
+go_down_before_open_gripper_in_place: true

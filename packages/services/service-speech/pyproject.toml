@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MulanPSL-2.0
+# Robonix system service: speech (ASR + TTS + Dialog manager).
+#
+# uv-managed: `uv sync` (called from scripts/build.sh) materialises the
+# local rbnx-build/venv/ from this file + the workspace uv.lock.
+
+[project]
+name = "robonix-system-speech"
+version = "0.1.0"
+description = "Robonix Speech Service — pluggable local or cloud ASR/TTS backends."
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "websockets>=16.0",
+    "grpcio>=1.60",
+    "grpcio-tools>=1.60",
+    "protobuf>=4.24",
+    "pypinyin>=0.55",
+    "sentencepiece>=0.2",
+    "sherpa-onnx>=1.13.2,<1.14",
+    "scipy>=1.10",
+    "numpy>=1.24,<2",
+    "robonix-api",
+    # robonix-api 是用 mcp 1.x 的 API 写的（`from mcp.server.fastmcp import FastMCP`），
+    # 但它自己只声明 `mcp>=1.0`；不封顶的话这里会装到 mcp 2.x，服务启动即
+    # ModuleNotFoundError。上游哪天改完了，这行可以删。
+    "mcp>=1.0,<2",
+]
+
+[project.optional-dependencies]
+# Local inference is deliberately optional. Cloud deployments must not pull
+# Torch, FunASR, Transformers, or model weights merely to use Tencent ASR/TTS.
+local = [
+    "torch>=2.0; platform_machine != 'aarch64'",
+    "torchaudio>=2.0; platform_machine != 'aarch64'",
+    "transformers>=4.30",
+    "funasr>=1.0",
+    "edge-tts>=6.1",
+    "opencc-python-reimplemented>=0.1.7",
+]
+
+[tool.uv]
+package = false
+
+# LOCAL DEVIATION（唯一一处，且只有这一行）：上游里这个服务是 robonix 主仓的
+# uv 工作区成员，依赖写作 `robonix-api = { workspace = true }`；本仓库是 deploy
+# 仓库、不是 uv 工作区，故改为指向仓库内一份可写副本 vendor/robonix-api/
+# （与 robonix 主仓 pylib/robonix-api 逐字节一致）。用副本而不是直接指镜像里的
+# 源码，是为了让依赖照旧由 uv.lock 钉死（uv sync 装的版本与锁一致）。
+[tool.uv.sources]
+robonix-api = { path = "vendor/robonix-api" }

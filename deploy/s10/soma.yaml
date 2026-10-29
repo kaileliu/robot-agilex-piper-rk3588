@@ -1,0 +1,153 @@
+# Soma body description for the Piper-arm + Orbbec + grasp deploy.
+#
+# Loaded by robonix-soma (PR #109 v2 flat schema) and exposed verbatim
+# through robonix/system/soma/get_yaml. The URDF referenced under
+# `urdf.path` is streamed as-is via robonix/system/soma/get_urdf.
+#
+# What soma actually parses right now (system/soma/src/store.rs
+# MinimalSomaDoc): only `urdf.path` and `robot.id`. Everything else in
+# this file is forward-looking — preserved byte-for-byte in get_yaml
+# responses so downstream services (footprint / description /
+# sensor_extrinsics srvs) can start mining it the moment they ship.
+#
+# References:
+#   - Design:            /Users/howenliu/lab/docs/soma_two_stage_bringup.md §12
+#   - Ranger sibling:    /Users/howenliu/lab/ranger_mini_deploy/soma.yaml
+#   - Component tree:    matches package_manifest.yaml provider_ids of
+#                        orbbec_camera / piper_ctl / piper_description in
+#                        /Users/howenliu/lab/package_syswonder/*-rbnx/
+
+urdf:
+  # Path is resolved relative to this YAML file's directory (soma
+  # store.rs::SomaBody::load).
+  path: ./urdf/piper.urdf
+  root_link: base_link
+  model_name: piper
+
+robot:
+  id: piper_grasp_01
+  display_name: "AgileX Piper 6-DoF arm + Orbbec Dabai DCW RGBD + gripper"
+  family: manipulator
+  root_part: arm
+  dimensions:
+    # Piper arm reach envelope. Rough numbers from the AgileX product
+    # sheet — refine when a lab measurement is available. Not used by
+    # soma v0.1; kept so future footprint srv can serve it.
+    length_m: 0.85
+    width_m:  0.30
+    height_m: 0.40
+  mass_kg: 4.2
+
+# Component tree. Stage A: soma v0.1 doesn't parse this — but writing
+# it now means stage B/C light up automatically when downstream srvs
+# ship.
+#
+# Naming convention (same as ranger_mini_deploy):
+#   - `id` is the semantic name, NOT the URDF link name.
+#   - `link` references the URDF link name exactly.
+#   - `provided_by[].provider_id` matches an entry in
+#     robonix_manifest.yaml's primitive/service/skill lists — that's
+#     the contract pilot needs to disambiguate "which arm should pick".
+tree:
+  id: arm
+  part_type: manipulator
+  human_label: "AgileX Piper 6-DoF arm, table-mounted"
+  link: base_link
+  manipulator:
+    dof: 6
+    base_link: base_link
+    end_effector_link: link6
+    # Piper joint names as they appear in urdf/piper.urdf.
+    joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+    # Approximate mechanical envelope — refine from AgileX spec sheet.
+    reach_m: 0.75
+    max_payload_kg: 1.5
+  provided_by:
+    - contract: robonix/primitive/arm/joint_states
+      provider_id: piper_ctl
+    - contract: robonix/primitive/arm/joint_command
+      provider_id: piper_ctl
+    - contract: robonix/primitive/arm/end_pose
+      provider_id: piper_ctl
+    - contract: robonix/primitive/arm/pos_command
+      provider_id: piper_ctl
+    - contract: robonix/primitive/arm/arm_status
+      provider_id: piper_ctl
+  children:
+    - id: gripper
+      part_type: end_effector
+      human_label: "Piper factory two-finger parallel gripper (binary open/close)"
+      # Gripper links live under link6 in the with-gripper variant of
+      # piper_description.urdf. The exact leaf link name depends on
+      # which URDF variant is loaded — the vendored one here is
+      # piper_description.urdf (with gripper). soma v0.1 ignores this
+      # anyway; keep the id/human_label for the LLM to reason about.
+      link: link6
+      end_effector:
+        modality: parallel_jaw
+        max_width_m: 0.08
+        max_payload_kg: 1.5
+      provided_by:
+        # Gripper is commanded as a named joint in the arm's
+        # joint_command JointState (position[6] carries the finger
+        # opening) — no separate contract for the gripper alone.
+        - contract: robonix/primitive/arm/joint_command
+          provider_id: piper_ctl
+
+    - id: wrist_camera
+      part_type: sensor
+      human_label: "Orbbec Dabai DCW eye-in-hand RGBD (2D homography calibrated)"
+      # Current vertical-grasp deploy does not run easy_handeye2 or
+      # consume a link6 -> camera_color_optical_frame TF edge. grasp_pose
+      # maps RGB bbox pixels directly to arm/base_link XY with
+      # rbnx-boot/hand-eye-data/2d_homography.npy, then uses
+      # default_desktop_height as the grasp Z.
+      link: link6
+      sensor:
+        modality: rgbd
+        placement: end_effector_wrist
+        # Dabai DCW datasheet numbers — match orbbec_camera's config
+        # block in robonix_manifest.yaml.
+        resolution: [1280, 720]
+        framerate_hz: 10
+        depth_range_m: [0.2, 3.0]
+      provided_by:
+        - contract: robonix/primitive/camera/rgb
+          provider_id: orbbec_camera
+        - contract: robonix/primitive/camera/depth
+          provider_id: orbbec_camera
+        - contract: robonix/primitive/camera/camera_info
+          provider_id: orbbec_camera
+
+description:
+  summary: >-
+    Table-top manipulation cell. A 6-DoF AgileX Piper arm with a
+    factory two-finger parallel gripper, plus an eye-in-hand Orbbec
+    Dabai DCW RGBD camera.
+    Currently configured for the vertical-grasp pipeline: llm_detect
+    (VLM-based 2D detection on wrist RGB) → grasp_pose (fixed top-down
+    pose from bbox center + calibrated 2D homography + configured table z)
+    → roboarm_ik
+    (Python IK execute_grasp) → pick skill. Depth stream is
+    unused. No mobile base.
+  can_do:
+    - "Command joint positions on the Piper via primitive/arm/joint_command, or an end-effector Cartesian pose via primitive/arm/pos_command."
+    - "Read arm proprioception (joint_states, end_pose, arm_status)."
+    - "Capture eye-in-hand RGB from the Orbbec Dabai DCW."
+    - "Detect table-top objects by name via llm_detect (LLM VLM on RGB; depth stream is unused in this manifest)."
+    - "Grasp table-top objects with a fixed vertical top-down approach — xy from LLM bbox + calibrated 2D homography, orientation locked vertical-down with yaw derived from the bbox long edge."
+    - "Execute top-down grasp poses via roboarm_ik / execute_grasp, publishing joint and gripper commands through piper_ctl."
+  cannot_do:
+    - "Drive around — this deploy has no mobile base."
+    - "Grasp objects with arbitrary 6-DoF poses — this deploy only does vertical top-down grasps."
+    - "Grasp objects standing/lying above or below the reachable table plane — z is clamped to a single configured constant (default_desktop_height)."
+    - "Grasp transparent/reflective objects reliably — LLM detection may still fail, but at least depth artifacts are no longer a failure mode (depth is not used)."
+    - "See any scene outside the wrist camera's FOV."
+    - "Run closed-loop VLA policies by default — openvla_client is declared but PARKED (pick runs mode: pipeline), so /arm/joint_command stays owned by roboarm_ik unless a VLA path is explicitly invoked."
+  notes:
+    - "The vendored URDF is the WITH-GRIPPER variant (joint1..joint8; joint7/joint8 are the gripper fingers). Override to no-gripper via env PIPER_URDF_PATH in robonix_manifest.yaml if a naked arm is needed."
+    - "2D hand-eye calibration is loaded by grasp_pose from rbnx-boot/hand-eye-data/2d_homography.npy. Re-run tools/calibrate_handeye_2d.py if the camera mount, observe pose, or workspace layout changes."
+    - "default_desktop_height (grasp_pose config) is the final physical grasp z in arm/base_link frame. A wrong value causes empty grasps or table collisions."
+    - "llm_detect uses skip_depth=true: depth topic is not subscribed and depth-based fallback is disabled. Grasp geometry comes from RGB bbox + 2D homography + default_desktop_height."
+    - "openvla_client is DECLARED in this manifest but PARKED: pick runs mode: pipeline, so the VLA path is never taken by default. It is exercised only by a direct robonix/skill/vla/execute call. VLA and roboarm_ik both publish /arm/joint_command but never run concurrently (pipeline pick vs. a direct vla/execute call are separate intents)."
+    - "Soma v2 flat schema: this file is served verbatim; only urdf.path and robot.id are parsed. The tree / description sections are for LLM context via the future soma_bridge MCP adapter."

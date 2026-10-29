@@ -1,0 +1,35 @@
+# Demo shuttle: repeatedly sort the named object between the two configured
+# demo positions.
+
+# Request
+# Open-vocabulary object name interpreted by the configured LLM/VLM detector.
+string object_name
+
+# How many shuttle rounds to run. 0 or absent = keep shuttling until the
+# call's time budget is nearly exhausted.
+int32 demo_rounds
+---
+# Response
+
+# Whether the demo loop completed (all requested rounds, or the budget).
+bool success
+
+# Free-form status. On failure, identifies which stage broke:
+#   "detection_failed: ..."
+#   "grasp_pose_failed: ..."
+#   "execute_grasp_failed: ..."
+#   "place_and_home_failed: ..."
+string message
+
+# The grasp pose of the last executed round. Its frame is supplied by
+# grasp_pose (the current deploy uses arm/base_link).
+geometry_msgs/PoseStamped grasp_pose
+
+# Gripper opening for the last grasp (m).
+float32 gripper_width
+
+# Score (heuristic / handler-defined) of the last grasp.
+float32 score
+
+# How long the whole call took (s).
+float32 elapsed_s

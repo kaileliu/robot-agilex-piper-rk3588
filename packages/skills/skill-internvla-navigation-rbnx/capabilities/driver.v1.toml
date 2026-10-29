@@ -1,0 +1,10 @@
+[contract]
+id = "robonix/skill/internvla_navigation/driver"
+version = "1"
+kind = "skill"
+idl = "lifecycle/srv/Driver.srv"
+description = "Lifecycle interface for the InternVLA navigation skill."
+
+[mode]
+type = "rpc"
+

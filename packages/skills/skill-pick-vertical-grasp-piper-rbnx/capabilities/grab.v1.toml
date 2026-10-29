@@ -1,0 +1,26 @@
+# robonix/skill/pick/grab — grasp a named object and KEEP HOLDING it.
+#
+# User-invocable atomic intent: "pick it up / hand it to me" — grasp the
+# object and leave it in the gripper (no place, no release). Internally:
+#   1. 技能内检测 (undistort → YOLO detect-all + LLM match / VLM locate)
+#   2. service/perception/grasp_pose/grasp_request     — compute a grasp
+#   3. service/manipulation/execute_grasp              — drive the arm
+# then HOLDS the object at the hover pose above the grasp point (gripper closed)
+# — no lateral motion, no release. From there put_in_box carries it to the box,
+# and put_down releases it in place; pick = grab + put_in_box.
+# 检测在技能内做（宿主 YOLO 全量检测 + LLM 措辞匹配，或直连 VLM 定位），
+# 不经过 object_detect 服务。
+#
+# Reuses Pick.srv verbatim (request = object_name; response = success/pose/…),
+# so no new codegen is required.
+#
+# Synchronous: blocks until the arm finishes the grasp (success) or the budget
+# is exhausted (timeout), mirroring pick.
+[contract]
+id      = "robonix/skill/pick/grab"
+version = "1"
+kind    = "skill"
+idl     = "pick/srv/Pick.srv"
+
+[mode]
+type = "rpc"

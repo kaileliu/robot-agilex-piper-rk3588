@@ -1,0 +1,22 @@
+# Color stream camera intrinsics (sensor_msgs/CameraInfo).
+#
+# Defined at PACKAGE level rather than in the robonix global tree:
+# the global `capabilities/primitive/camera/` ships rgb / depth /
+# driver / extrinsics / snapshot / depth_snapshot but NOT
+# camera_info. yolo_grasp's depth back-projection (Stage 4B) needs
+# fx/fy/cx/cy + distortion to turn a 2D bbox center into a 3D point
+# in the camera frame; routing it through atlas keeps the consumer
+# decoupled from the upstream driver's topic name choice.
+#
+# `rbnx codegen` and atlas both auto-merge package-level capabilities
+# into the global tree at build / register time, so consumers just
+# query `robonix/primitive/camera/camera_info` and don't need to
+# know it lives here.
+[contract]
+id      = "robonix/primitive/camera/camera_info"
+version = "1"
+kind    = "primitive"
+idl     = "common_interfaces/sensor_msgs/msg/CameraInfo.msg"
+
+[mode]
+type = "topic_out"

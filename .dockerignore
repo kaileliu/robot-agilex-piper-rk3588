@@ -1,0 +1,31 @@
+# 构建上下文瘦身：镜像只需要 vendor/（robonix 源码）与 packages/、deploy/
+.git/
+rbnx-boot/
+.robonix-build/
+docs/
+tools/
+
+# 包构建产物（colcon 工作区 / venv，动辄上 G）
+packages/*/rbnx-build/
+packages/*/logs/
+
+# 宿主侧的 venv 与模型：两个镜像都不需要它们——模型服务在宿主上跑、读原件。
+# 不挡的话上下文会有好几个 G（各服务的 torch venv + 校准 venv + 849MB 模型），
+# 每次 docker build 都要把这些打包送进 daemon。
+**/.venv/
+host-services/.uv-cache/
+host-services/funasr/model/
+host-services/openpi/openpi-src/
+
+**/__pycache__/
+**/*.pyc
+*.local.yaml
+**/*.local.yaml
+**/*.local.env
+
+# NPU inference stays on the host; these are not image build inputs.
+yolo_npu/
+run-logs/
+reports/
+**/rbnx-build/
+**/rbnx-boot/
